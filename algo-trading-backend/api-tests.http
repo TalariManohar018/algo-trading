@@ -1,0 +1,85 @@
+### Algo Trading Backend API Tests
+
+### 1. Create Strategy - EMA Crossover
+POST http://localhost:8080/api/strategies
+Content-Type: application/json
+
+{
+  "name": "EMA Crossover Strategy",
+  "instrument": "NIFTY",
+  "conditions": [
+    {
+      "indicator": "EMA",
+      "condition": ">",
+      "value": "50",
+      "logic": "AND"
+    },
+    {
+      "indicator": "RSI",
+      "condition": ">",
+      "value": "50"
+    }
+  ]
+}
+
+### 2. Create Strategy - RSI Momentum
+POST http://localhost:8080/api/strategies
+Content-Type: application/json
+
+{
+  "name": "RSI Momentum",
+  "instrument": "BANKNIFTY",
+  "conditions": [
+    {
+      "indicator": "RSI",
+      "condition": "<",
+      "value": "30",
+      "logic": "OR"
+    },
+    {
+      "indicator": "RSI",
+      "condition": ">",
+      "value": "70"
+    }
+  ]
+}
+
+### 3. Get All Strategies
+GET http://localhost:8080/api/strategies
+
+### 4. Get Strategy by ID
+GET http://localhost:8080/api/strategies/1
+
+### 5. Activate Strategy
+PUT http://localhost:8080/api/strategies/1/activate
+
+### 6. Deactivate Strategy
+PUT http://localhost:8080/api/strategies/1/deactivate
+
+### 7. Run Backtest
+POST http://localhost:8080/api/backtest/1
+Content-Type: application/json
+
+{
+  "startDate": "2024-01-01",
+  "endDate": "2024-12-31",
+  "initialCapital": 100000
+}
+
+### 8. Get All Trades
+GET http://localhost:8080/api/trades
+
+### 9. Get Trades by Strategy
+GET http://localhost:8080/api/trades/strategy/1
+
+### 10. Get Total PnL
+GET http://localhost:8080/api/trades/pnl/total
+
+### 11. Get PnL by Strategy
+GET http://localhost:8080/api/trades/pnl/by-strategy
+
+### 12. Get Win Rate
+GET http://localhost:8080/api/trades/winrate/1
+
+### 13. Delete Strategy
+DELETE http://localhost:8080/api/strategies/1

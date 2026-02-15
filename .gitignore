@@ -1,0 +1,32 @@
+# Backend (Java/Maven)
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.log
+*.jar
+*.war
+*.ear
+.mvn/
+mvnw
+mvnw.cmd
+
+# Frontend (Node/React)
+node_modules/
+dist/
+build/
+*.local
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
