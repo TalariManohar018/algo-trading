@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { websocketService, WebSocketEventType, WebSocketMessage } from '../services/websocketService';
 
 export function useWebSocket(eventType: WebSocketEventType) {

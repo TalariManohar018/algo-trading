@@ -1,7 +1,6 @@
 // Mock WebSocket Service
 // This simulates real-time data updates that would come from a WebSocket connection
 
-import { marketService } from './marketService';
 import { tradeService } from './tradeService';
 
 export type WebSocketEventType =
@@ -20,7 +19,7 @@ type MessageCallback = (message: WebSocketMessage) => void;
 
 class WebSocketMockService {
     private subscribers: Map<WebSocketEventType, Set<MessageCallback>> = new Map();
-    private intervals: NodeJS.Timeout[] = [];
+    private intervals: ReturnType<typeof setInterval>[] = [];
     private isConnected = false;
 
     connect(): void {

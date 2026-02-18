@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Strategy, strategyApi } from '../api/strategies';
+import { strategyApi } from '../api/strategies';
+import { Strategy } from '../services/strategyService';
 import { Play, Square, Trash2 } from 'lucide-react';
 
 interface StrategyCardProps {
@@ -79,8 +80,8 @@ export default function StrategyCard({ strategy, onUpdate }: StrategyCardProps) 
                     onClick={handleToggleStatus}
                     disabled={isUpdating}
                     className={`flex-1 py-2 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${isActive
-                            ? 'bg-red-50 text-red-700 hover:bg-red-100'
-                            : 'bg-green-50 text-green-700 hover:bg-green-100'
+                        ? 'bg-red-50 text-red-700 hover:bg-red-100'
+                        : 'bg-green-50 text-green-700 hover:bg-green-100'
                         } disabled:opacity-50`}
                 >
                     {isActive ? (
