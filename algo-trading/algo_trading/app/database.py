@@ -1,12 +1,15 @@
+# app/database.py
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import settings
 
+connect_args = {}
+if "sqlite" in settings.DATABASE_URL:
+    connect_args["check_same_thread"] = False
+
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False}
-    if "sqlite" in settings.DATABASE_URL
-    else {},
+    connect_args=connect_args,
     pool_pre_ping=True,
 )
 
@@ -15,7 +18,6 @@ Base = declarative_base()
 
 
 def get_db():
-    """FastAPI dependency that yields a database session."""
     db = SessionLocal()
     try:
         yield db
@@ -24,5 +26,5 @@ def get_db():
 
 
 def init_db() -> None:
-    """Create all tables."""
+    import app.models.trade  # noqa: F401 — ensure models are registered
     Base.metadata.create_all(bind=engine)

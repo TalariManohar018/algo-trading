@@ -1,27 +1,8 @@
 #!/usr/bin/env bash
 set -e
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
-
-if [ ! -d "venv" ]; then
-    echo "Creating virtual environment..."
-    python3 -m venv venv
-fi
-
-echo "Activating virtual environment..."
+cd "$(dirname "$0")"
+[ ! -d "venv" ] && python3 -m venv venv
 source venv/bin/activate
-
-echo "Installing dependencies..."
-pip install --quiet --upgrade pip
-pip install --quiet -r requirements.txt
-
-echo ""
-echo "==================================="
-echo "  Starting Algo Trading Engine"
-echo "  http://localhost:8000"
-echo "  Docs: http://localhost:8000/docs"
-echo "==================================="
-echo ""
-
-python -m app.main
+pip install -q -r requirements.txt
+echo "Starting on http://localhost:8000  Docs: http://localhost:8000/docs"
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

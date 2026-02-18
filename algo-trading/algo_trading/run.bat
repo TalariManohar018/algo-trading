@@ -1,24 +1,7 @@
 @echo off
 cd /d "%~dp0"
-
-if not exist "venv" (
-    echo Creating virtual environment...
-    python -m venv venv
-)
-
-echo Activating virtual environment...
+if not exist "venv" python -m venv venv
 call venv\Scripts\activate.bat
-
-echo Installing dependencies...
-pip install --quiet --upgrade pip
-pip install --quiet -r requirements.txt
-
-echo.
-echo ===================================
-echo   Starting Algo Trading Engine
-echo   http://localhost:8000
-echo   Docs: http://localhost:8000/docs
-echo ===================================
-echo.
-
-python -m app.main
+pip install -q -r requirements.txt
+echo Starting on http://localhost:8000  Docs: http://localhost:8000/docs
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

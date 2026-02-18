@@ -1,5 +1,4 @@
-"""Full-featured event-driven backtesting engine."""
-
+# app/backtesting/engine.py
 from __future__ import annotations
 
 import io
@@ -9,13 +8,12 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from app.config import Settings
+from app.config import settings
 from app.strategies.base import BaseStrategy, Signal
 
 
 @dataclass
 class BacktestTrade:
-    """Record of a single round-trip trade produced during a backtest."""
     symbol: str
     side: str
     entry_price: float
@@ -30,7 +28,6 @@ class BacktestTrade:
 
 @dataclass
 class BacktestResult:
-    """Aggregate statistics from a completed backtest run."""
     strategy_name: str
     symbol: str
     start_date: str
@@ -76,27 +73,6 @@ class BacktestResult:
 
 
 class BacktestEngine:
-    """Event-driven backtesting engine.
-
-    Accepts an OHLCV DataFrame (or CSV string), runs a strategy against it
-    bar-by-bar, and returns a full BacktestResult with equity curve.
-
-    Parameters
-    ----------
-    strategy : BaseStrategy
-        The strategy to test.
-    initial_capital : float | None
-        Starting equity (defaults to Settings.INITIAL_CAPITAL).
-    commission_pct : float | None
-        Commission per trade as a fraction (defaults to Settings.COMMISSION_PCT).
-    slippage_pct : float | None
-        Simulated slippage as a fraction (defaults to Settings.SLIPPAGE_PCT).
-    risk_per_trade : float | None
-        Fraction of capital risked per trade (defaults to Settings.RISK_PER_TRADE).
-    stop_loss_pct : float | None
-        Stop-loss distance as a fraction (defaults to Settings.STOP_LOSS_PCT).
-    """
-
     def __init__(
         self,
         strategy: BaseStrategy,
@@ -105,8 +81,7 @@ class BacktestEngine:
         slippage_pct: Optional[float] = None,
         risk_per_trade: Optional[float] = None,
         stop_loss_pct: Optional[float] = None,
-    ):
-        settings = Settings()
+    ) -> None:
         self.strategy = strategy
         self.initial_capital = initial_capital or settings.INITIAL_CAPITAL
         self.commission_pct = commission_pct if commission_pct is not None else settings.COMMISSION_PCT
@@ -115,7 +90,6 @@ class BacktestEngine:
         self.stop_loss_pct = stop_loss_pct if stop_loss_pct is not None else settings.STOP_LOSS_PCT
 
     def run(self, df: pd.DataFrame, symbol: str) -> BacktestResult:
-        """Execute the backtest and return aggregated results."""
         df = self.strategy.validate_dataframe(df)
         signals = self.strategy.generate_signals(df, symbol)
 
@@ -128,45 +102,41 @@ class BacktestEngine:
 
         signal_map: dict[str, Signal] = {}
         for sig in signals:
-            key = sig.timestamp.isoformat()
-            signal_map[key] = sig.signal
+            signal_map[sig.timestamp.isoformat()] = sig.signal
 
         for ts, row in df.iterrows():
             close = float(row["close"])
             ts_str = pd.Timestamp(ts).isoformat()
             sig = signal_map.get(ts_str, Signal.HOLD)
 
+            # Check stop-loss
             if position_qty > 0:
                 stop_price = entry_price * (1 - self.stop_loss_pct)
                 if close <= stop_price:
                     exit_price = close * (1 - self.slippage_pct)
                     commission = exit_price * position_qty * self.commission_pct
                     pnl = (exit_price - entry_price) * position_qty - commission
-                    ret = (exit_price - entry_price) / entry_price
-                    trades.append(
-                        BacktestTrade(
-                            symbol=symbol,
-                            side="BUY",
-                            entry_price=round(entry_price, 4),
-                            exit_price=round(exit_price, 4),
-                            quantity=round(position_qty, 6),
-                            entry_time=entry_time,
-                            exit_time=ts_str,
-                            pnl=round(pnl, 2),
-                            commission=round(commission, 2),
-                            return_pct=round(ret, 6),
-                        )
-                    )
+                    ret_pct = (exit_price - entry_price) / entry_price if entry_price else 0
+                    trades.append(BacktestTrade(
+                        symbol=symbol, side="BUY",
+                        entry_price=round(entry_price, 4),
+                        exit_price=round(exit_price, 4),
+                        quantity=round(position_qty, 6),
+                        entry_time=entry_time, exit_time=ts_str,
+                        pnl=round(pnl, 2), commission=round(commission, 2),
+                        return_pct=round(ret_pct, 6),
+                    ))
                     capital += pnl
                     position_qty = 0.0
                     entry_price = 0.0
 
+            # Process signals
             if sig == Signal.BUY and position_qty == 0:
                 buy_price = close * (1 + self.slippage_pct)
                 risk_amount = capital * self.risk_per_trade
                 stop_dist = buy_price * self.stop_loss_pct
                 qty = risk_amount / stop_dist if stop_dist > 0 else 0
-                max_qty = (capital * 0.95) / buy_price
+                max_qty = (capital * 0.95) / buy_price if buy_price > 0 else 0
                 qty = min(qty, max_qty)
                 if qty > 0:
                     commission = buy_price * qty * self.commission_pct
@@ -179,54 +149,45 @@ class BacktestEngine:
                 exit_price = close * (1 - self.slippage_pct)
                 commission = exit_price * position_qty * self.commission_pct
                 pnl = (exit_price - entry_price) * position_qty - commission
-                ret = (exit_price - entry_price) / entry_price
-                trades.append(
-                    BacktestTrade(
-                        symbol=symbol,
-                        side="BUY",
-                        entry_price=round(entry_price, 4),
-                        exit_price=round(exit_price, 4),
-                        quantity=round(position_qty, 6),
-                        entry_time=entry_time,
-                        exit_time=ts_str,
-                        pnl=round(pnl, 2),
-                        commission=round(commission, 2),
-                        return_pct=round(ret, 6),
-                    )
-                )
+                ret_pct = (exit_price - entry_price) / entry_price if entry_price else 0
+                trades.append(BacktestTrade(
+                    symbol=symbol, side="BUY",
+                    entry_price=round(entry_price, 4),
+                    exit_price=round(exit_price, 4),
+                    quantity=round(position_qty, 6),
+                    entry_time=entry_time, exit_time=ts_str,
+                    pnl=round(pnl, 2), commission=round(commission, 2),
+                    return_pct=round(ret_pct, 6),
+                ))
                 capital += pnl
                 position_qty = 0.0
                 entry_price = 0.0
 
-            mark_to_market = capital + (position_qty * close if position_qty > 0 else 0)
-            equity_curve.append({"date": ts_str, "equity": round(mark_to_market, 2)})
+            mark = capital + (position_qty * close if position_qty > 0 else 0)
+            equity_curve.append({"date": ts_str, "equity": round(mark, 2)})
 
+        # Close remaining position at last bar
         if position_qty > 0:
             last_close = float(df.iloc[-1]["close"])
             exit_price = last_close * (1 - self.slippage_pct)
             commission = exit_price * position_qty * self.commission_pct
             pnl = (exit_price - entry_price) * position_qty - commission
-            ret = (exit_price - entry_price) / entry_price
-            trades.append(
-                BacktestTrade(
-                    symbol=symbol,
-                    side="BUY",
-                    entry_price=round(entry_price, 4),
-                    exit_price=round(exit_price, 4),
-                    quantity=round(position_qty, 6),
-                    entry_time=entry_time,
-                    exit_time=df.index[-1].isoformat(),
-                    pnl=round(pnl, 2),
-                    commission=round(commission, 2),
-                    return_pct=round(ret, 6),
-                )
-            )
+            ret_pct = (exit_price - entry_price) / entry_price if entry_price else 0
+            trades.append(BacktestTrade(
+                symbol=symbol, side="BUY",
+                entry_price=round(entry_price, 4),
+                exit_price=round(exit_price, 4),
+                quantity=round(position_qty, 6),
+                entry_time=entry_time,
+                exit_time=pd.Timestamp(df.index[-1]).isoformat(),
+                pnl=round(pnl, 2), commission=round(commission, 2),
+                return_pct=round(ret_pct, 6),
+            ))
             capital += pnl
 
         return self._compute_stats(capital, trades, equity_curve, symbol, df)
 
     def run_from_csv(self, csv_text: str, symbol: str) -> BacktestResult:
-        """Convenience: parse CSV text into a DataFrame and run backtest."""
         df = pd.read_csv(io.StringIO(csv_text))
         return self.run(df, symbol)
 
@@ -238,27 +199,23 @@ class BacktestEngine:
         symbol: str,
         df: pd.DataFrame,
     ) -> BacktestResult:
-        """Calculate aggregate performance metrics."""
         total_return = (final_capital - self.initial_capital) / self.initial_capital
+
+        ann_return = 0.0
+        sharpe = 0.0
+        max_dd = 0.0
 
         if len(equity_curve) > 1:
             equities = pd.Series([e["equity"] for e in equity_curve])
             daily_returns = equities.pct_change().dropna()
             trading_days = len(equity_curve)
             years = trading_days / 252 if trading_days > 0 else 1
-            ann_return = (1 + total_return) ** (1 / years) - 1 if years > 0 else 0
-            sharpe = (
-                (daily_returns.mean() / daily_returns.std()) * np.sqrt(252)
-                if daily_returns.std() > 0
-                else 0.0
-            )
+            ann_return = (1 + total_return) ** (1 / max(years, 0.01)) - 1
+            if daily_returns.std() > 0:
+                sharpe = float((daily_returns.mean() / daily_returns.std()) * np.sqrt(252))
             running_max = equities.cummax()
             drawdown = (equities - running_max) / running_max
             max_dd = float(drawdown.min())
-        else:
-            ann_return = 0.0
-            sharpe = 0.0
-            max_dd = 0.0
 
         wins = [t for t in trades if t.pnl > 0]
         losses = [t for t in trades if t.pnl <= 0]

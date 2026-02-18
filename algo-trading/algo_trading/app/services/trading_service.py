@@ -1,5 +1,4 @@
-"""Trading service — orchestrates strategy signals, risk checks, and broker execution."""
-
+# app/services/trading_service.py
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -9,42 +8,26 @@ import pandas as pd
 from sqlalchemy.orm import Session
 
 from app.broker.base import BaseBroker, PositionInfo
-from app.config import Settings
-from app.models.trade import OrderSide, OrderStatus, Position, Trade
+from app.models.trade import Position, Trade
 from app.risk.manager import RiskManager
 from app.strategies.base import BaseStrategy, Signal
 
 
 @dataclass
 class TradingResult:
-    """Summary returned after processing a single bar / signal batch."""
     executed: int = 0
     rejected: int = 0
     details: List[dict] = field(default_factory=list)
 
 
 class TradingService:
-    """High-level orchestrator: strategy -> risk -> broker -> persistence.
-
-    Parameters
-    ----------
-    strategy : BaseStrategy
-        Strategy instance that generates signals.
-    broker : BaseBroker
-        Broker adapter (paper or live) that executes orders.
-    risk_manager : RiskManager
-        Risk manager that sizes positions and enforces limits.
-    db : Session | None
-        Optional SQLAlchemy session for persisting trades.
-    """
-
     def __init__(
         self,
         strategy: BaseStrategy,
         broker: BaseBroker,
         risk_manager: RiskManager,
         db: Optional[Session] = None,
-    ):
+    ) -> None:
         self.strategy = strategy
         self.broker = broker
         self.risk_manager = risk_manager
@@ -52,10 +35,6 @@ class TradingService:
         self.peak_equity = broker.get_portfolio_value()
 
     def process_bar(self, df: pd.DataFrame, symbol: str) -> TradingResult:
-        """Run strategy on *df*, execute approved trades, and return results.
-
-        This is the main entry point for live / paper trading loops.
-        """
         signals = self.strategy.generate_signals(df, symbol)
         result = TradingResult()
 
@@ -64,149 +43,91 @@ class TradingService:
                 continue
 
             positions = self.broker.get_positions()
-            current_exposure = sum(p.current_price * p.quantity for p in positions)
-            open_count = len(positions)
+            exposure = sum(p.current_price * p.quantity for p in positions)
 
             if sig.signal == Signal.BUY:
-                assessment = self.risk_manager.assess_trade(
-                    price=sig.price,
-                    side="BUY",
-                    current_exposure=current_exposure,
-                    open_position_count=open_count,
-                )
+                assessment = self.risk_manager.assess_trade(sig.price, "BUY", exposure, len(positions))
                 if not assessment.approved:
                     result.rejected += 1
-                    result.details.append({
-                        "signal": sig.signal.value,
-                        "symbol": sig.symbol,
-                        "status": "REJECTED",
-                        "reason": assessment.reason,
-                    })
+                    result.details.append({"signal": "BUY", "symbol": sig.symbol, "status": "REJECTED", "reason": assessment.reason})
                     continue
-
-                order = self.broker.place_order(
-                    symbol=sig.symbol,
-                    side="BUY",
-                    quantity=assessment.position_size,
-                    price=sig.price,
-                    stop_loss=assessment.stop_loss_price,
-                )
+                order = self.broker.place_order(sig.symbol, "BUY", assessment.position_size, sig.price, assessment.stop_loss_price)
                 if order.status == "FILLED":
                     result.executed += 1
-                    self._persist_trade(order, sig)
-                    self._persist_position(order, assessment.stop_loss_price)
+                    self._save_trade(order)
+                    self._save_position(order, assessment.stop_loss_price)
                     self.risk_manager.update_capital(self.broker.get_balance())
                 else:
                     result.rejected += 1
-
-                result.details.append({
-                    "signal": sig.signal.value,
-                    "symbol": sig.symbol,
-                    "status": order.status,
-                    "quantity": order.quantity,
-                    "price": order.price,
-                    "message": order.message,
-                })
+                result.details.append({"signal": "BUY", "symbol": sig.symbol, "status": order.status, "qty": order.quantity, "price": order.price})
 
             elif sig.signal == Signal.SELL:
                 order = self.broker.close_position(sig.symbol, sig.price)
                 if order.status == "FILLED":
                     result.executed += 1
-                    pnl = self._calculate_pnl(sig.symbol, order.price, order.quantity, positions)
-                    self._persist_trade(order, sig, pnl)
-                    self._remove_position(sig.symbol)
+                    pnl = self._calc_pnl(sig.symbol, order.price, order.quantity, positions)
+                    self._save_trade(order, pnl)
+                    self._del_position(sig.symbol)
                     self.risk_manager.update_capital(self.broker.get_balance())
                 else:
                     result.rejected += 1
+                result.details.append({"signal": "SELL", "symbol": sig.symbol, "status": order.status, "qty": order.quantity, "price": order.price})
 
-                result.details.append({
-                    "signal": sig.signal.value,
-                    "symbol": sig.symbol,
-                    "status": order.status,
-                    "quantity": order.quantity,
-                    "price": order.price,
-                    "message": order.message,
-                })
-
-            current_value = self.broker.get_portfolio_value()
-            if current_value > self.peak_equity:
-                self.peak_equity = current_value
+            val = self.broker.get_portfolio_value()
+            if val > self.peak_equity:
+                self.peak_equity = val
 
         return result
 
     def get_performance(self) -> dict:
-        """Return real-time performance snapshot."""
-        portfolio_value = self.broker.get_portfolio_value()
+        pv = self.broker.get_portfolio_value()
         cash = self.broker.get_balance()
         positions = self.broker.get_positions()
-        position_value = sum(p.current_price * p.quantity for p in positions)
-
-        total_return = (portfolio_value - self.risk_manager.capital) / self.risk_manager.capital if self.risk_manager.capital > 0 else 0.0
+        pos_val = sum(p.current_price * p.quantity for p in positions)
+        cap = self.risk_manager.capital
+        ret = (pv - cap) / cap if cap > 0 else 0.0
         dd = self.risk_manager.check_drawdown(self.peak_equity)
-
         return {
-            "portfolio_value": round(portfolio_value, 2),
+            "portfolio_value": round(pv, 2),
             "cash": round(cash, 2),
-            "position_value": round(position_value, 2),
-            "total_return_pct": round(total_return, 6),
+            "position_value": round(pos_val, 2),
+            "total_return_pct": round(ret, 6),
             "drawdown_pct": dd["drawdown_pct"],
             "peak_equity": dd["peak_equity"],
             "open_positions": len(positions),
             "strategy": self.strategy.name,
         }
 
-    def _calculate_pnl(
-        self, symbol: str, exit_price: float, quantity: float, positions: List[PositionInfo]
-    ) -> float:
-        for pos in positions:
-            if pos.symbol == symbol:
-                return (exit_price - pos.entry_price) * quantity
+    def _calc_pnl(self, symbol: str, exit_price: float, qty: float, positions: List[PositionInfo]) -> float:
+        for p in positions:
+            if p.symbol == symbol:
+                return (exit_price - p.entry_price) * qty
         return 0.0
 
-    def _persist_trade(self, order, sig, pnl: float = 0.0) -> None:
+    def _save_trade(self, order, pnl: float = 0.0) -> None:
         if self.db is None:
             return
-        trade = Trade(
-            symbol=order.symbol,
-            side=order.side,
-            quantity=order.quantity,
-            price=order.price,
-            commission=order.commission,
-            pnl=pnl,
-            status=order.status,
-            strategy=self.strategy.name,
-        )
-        self.db.add(trade)
+        self.db.add(Trade(symbol=order.symbol, side=order.side, quantity=order.quantity, price=order.price, commission=order.commission, pnl=pnl, status=order.status, strategy=self.strategy.name))
         self.db.commit()
 
-    def _persist_position(self, order, stop_loss: float) -> None:
+    def _save_position(self, order, stop_loss: float) -> None:
         if self.db is None:
             return
-        existing = self.db.query(Position).filter(Position.symbol == order.symbol).first()
-        if existing:
-            new_qty = existing.quantity + order.quantity
-            existing.entry_price = (
-                (existing.entry_price * existing.quantity) + (order.price * order.quantity)
-            ) / new_qty
-            existing.quantity = new_qty
-            existing.current_price = order.price
-            existing.stop_loss = stop_loss
+        ex = self.db.query(Position).filter(Position.symbol == order.symbol).first()
+        if ex:
+            nq = ex.quantity + order.quantity
+            ex.entry_price = (ex.entry_price * ex.quantity + order.price * order.quantity) / nq
+            ex.quantity = nq
+            ex.current_price = order.price
+            ex.stop_loss = stop_loss
         else:
-            pos = Position(
-                symbol=order.symbol,
-                side=order.side,
-                quantity=order.quantity,
-                entry_price=order.price,
-                current_price=order.price,
-                stop_loss=stop_loss,
-            )
-            self.db.add(pos)
+            self.db.add(Position(symbol=order.symbol, side=order.side, quantity=order.quantity, entry_price=order.price, current_price=order.price, stop_loss=stop_loss))
         self.db.commit()
 
-    def _remove_position(self, symbol: str) -> None:
+    def _del_position(self, symbol: str) -> None:
         if self.db is None:
             return
-        pos = self.db.query(Position).filter(Position.symbol == symbol).first()
-        if pos:
-            self.db.delete(pos)
+        p = self.db.query(Position).filter(Position.symbol == symbol).first()
+        if p:
+            self.db.delete(p)
             self.db.commit()

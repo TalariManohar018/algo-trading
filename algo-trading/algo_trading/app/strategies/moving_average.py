@@ -1,55 +1,40 @@
-"""Moving-average crossover strategy — production implementation."""
-
+# app/strategies/moving_average.py
 from typing import List
 
 import numpy as np
 import pandas as pd
 
-from app.config import Settings
+from app.config import settings
 from app.strategies.base import BaseStrategy, Signal, TradeSignal
 
 
 class MovingAverageCrossover(BaseStrategy):
-    """Classic dual-moving-average crossover strategy.
-
-    Generates a BUY signal when the short-window SMA crosses above the
-    long-window SMA, and a SELL signal on the inverse crossover.
-
-    Parameters
-    ----------
-    short_window : int
-        Look-back for the fast moving average (default from Settings).
-    long_window : int
-        Look-back for the slow moving average (default from Settings).
-    """
-
     def __init__(
         self,
         short_window: int | None = None,
         long_window: int | None = None,
-    ):
-        settings = Settings()
+    ) -> None:
         self.short_window = short_window or settings.SHORT_WINDOW
         self.long_window = long_window or settings.LONG_WINDOW
         super().__init__(name=f"MA_Crossover({self.short_window},{self.long_window})")
 
     def generate_signals(self, df: pd.DataFrame, symbol: str) -> List[TradeSignal]:
-        """Return crossover signals for every bar in *df*.
-
-        The method computes two SMAs on the 'close' column and detects
-        crossover points.  Only the rows where a crossover actually occurs
-        produce BUY / SELL signals; all other rows yield HOLD.
-        """
         df = self.validate_dataframe(df)
-
         if len(df) < self.long_window:
             return []
 
         df = df.copy()
-        df["sma_short"] = df["close"].rolling(window=self.short_window, min_periods=self.short_window).mean()
-        df["sma_long"] = df["close"].rolling(window=self.long_window, min_periods=self.long_window).mean()
+        df["sma_short"] = (
+            df["close"]
+            .rolling(window=self.short_window, min_periods=self.short_window)
+            .mean()
+        )
+        df["sma_long"] = (
+            df["close"]
+            .rolling(window=self.long_window, min_periods=self.long_window)
+            .mean()
+        )
         df.dropna(subset=["sma_short", "sma_long"], inplace=True)
-
         if df.empty:
             return []
 
@@ -85,27 +70,12 @@ class MovingAverageCrossover(BaseStrategy):
 
 
 class RSIMeanReversion(BaseStrategy):
-    """RSI-based mean-reversion strategy.
-
-    Buys when RSI drops below *oversold* and sells when RSI rises above
-    *overbought*.
-
-    Parameters
-    ----------
-    period : int
-        RSI look-back window (default 14).
-    oversold : float
-        RSI threshold to trigger BUY (default 30).
-    overbought : float
-        RSI threshold to trigger SELL (default 70).
-    """
-
     def __init__(
         self,
         period: int = 14,
         oversold: float = 30.0,
         overbought: float = 70.0,
-    ):
+    ) -> None:
         self.period = period
         self.oversold = oversold
         self.overbought = overbought
@@ -113,14 +83,11 @@ class RSIMeanReversion(BaseStrategy):
 
     @staticmethod
     def _compute_rsi(series: pd.Series, period: int) -> pd.Series:
-        """Compute Wilder-smoothed RSI."""
         delta = series.diff()
         gain = delta.clip(lower=0.0)
         loss = -delta.clip(upper=0.0)
-
         avg_gain = gain.ewm(alpha=1.0 / period, min_periods=period, adjust=False).mean()
         avg_loss = loss.ewm(alpha=1.0 / period, min_periods=period, adjust=False).mean()
-
         rs = avg_gain / avg_loss.replace(0, np.nan)
         rsi = 100.0 - (100.0 / (1.0 + rs))
         return rsi
@@ -133,7 +100,6 @@ class RSIMeanReversion(BaseStrategy):
         df = df.copy()
         df["rsi"] = self._compute_rsi(df["close"], self.period)
         df.dropna(subset=["rsi"], inplace=True)
-
         df["prev_rsi"] = df["rsi"].shift(1)
         df.dropna(subset=["prev_rsi"], inplace=True)
 
@@ -141,7 +107,6 @@ class RSIMeanReversion(BaseStrategy):
         for ts, row in df.iterrows():
             rsi_now = row["rsi"]
             rsi_prev = row["prev_rsi"]
-
             if rsi_prev >= self.oversold and rsi_now < self.oversold:
                 signals.append(
                     TradeSignal(
@@ -160,7 +125,9 @@ class RSIMeanReversion(BaseStrategy):
                         symbol=symbol,
                         price=float(row["close"]),
                         timestamp=pd.Timestamp(ts),
-                        strength=min((rsi_now - self.overbought) / (100 - self.overbought), 1.0),
+                        strength=min(
+                            (rsi_now - self.overbought) / (100 - self.overbought), 1.0
+                        ),
                         reason=f"RSI({self.period}) rose above {self.overbought}: {rsi_now:.1f}",
                     )
                 )
