@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: algo-trading-backend
+  profiles:
+    active: dev
+  
+  datasource:
+    url: jdbc:h2:mem:algotrading
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  task:
+    scheduling:
+      pool:
+        size: 2
+
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+
+jwt:
+  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+  expiration: 86400000
+
+logging:
+  level:
+    com.algo: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# Trading Engine Configuration
+trading:
+  engine:
+    tick-interval: 60000 # 1 minute
+    max-trades-per-day: 10
+  broker:
+    mode: MOCK # MOCK, ZERODHA, ANGEL
+
+# Broker Configuration
+broker:
+  mode: PAPER # PAPER (mock) or LIVE (real money)
+  provider: MOCK # MOCK, ZERODHA, ANGEL
+  zerodha:
+    api-key: ${ZERODHA_API_KEY:}
+    api-secret: ${ZERODHA_API_SECRET:}
+    user-id: ${ZERODHA_USER_ID:}
+    password: ${ZERODHA_PASSWORD:}
+    totp-secret: ${ZERODHA_TOTP_SECRET:}
+  angel:
+    api-key: ${ANGEL_API_KEY:}
+    client-id: ${ANGEL_CLIENT_ID:}
+    password: ${ANGEL_PASSWORD:}
+    totp-secret: ${ANGEL_TOTP_SECRET:}
