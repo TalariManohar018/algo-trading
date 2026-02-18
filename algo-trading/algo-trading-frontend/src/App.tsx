@@ -18,28 +18,14 @@ import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 
-// Protected Route Component
+// Protected Route Component — auth bypass: allow all access
 function ProtectedRoute({ children }: { children: JSX.Element }) {
-    const { isAuthenticated, loading } = useAuth();
-
-    // Show nothing while checking authentication
-    if (loading) {
-        return <div className="min-h-screen bg-gray-100" />;
-    }
-
-    return isAuthenticated ? children : <Navigate to="/login" replace />;
+    return children;
 }
 
-// Public Route Component (redirects to dashboard if already logged in)
+// Public Route Component — auth bypass: allow all access
 function PublicRoute({ children }: { children: JSX.Element }) {
-    const { isAuthenticated, loading } = useAuth();
-
-    // Show nothing while checking authentication
-    if (loading) {
-        return <div className="min-h-screen bg-gray-100" />;
-    }
-
-    return !isAuthenticated ? children : <Navigate to="/dashboard" replace />;
+    return children;
 }
 
 // Layout wrapper for protected pages

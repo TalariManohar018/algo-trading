@@ -26,9 +26,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Auto-login with a default user (no backend auth required)
         const currentUser = authService.getCurrentUser();
         if (currentUser) {
             setUser(currentUser);
+        } else {
+            setUser({
+                name: 'Trader',
+                email: 'trader@algo.app',
+                role: 'ADMIN',
+                createdAt: new Date().toISOString(),
+                subscription: 'Pro'
+            });
         }
         setLoading(false);
     }, []);
