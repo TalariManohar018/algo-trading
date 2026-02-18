@@ -10,7 +10,7 @@ interface StrategyCardProps {
 
 export default function StrategyCard({ strategy, onUpdate }: StrategyCardProps) {
     const [isUpdating, setIsUpdating] = useState(false);
-    const isActive = strategy.status === 'ACTIVE';
+    const isActive = strategy.status === 'RUNNING';
 
     const handleToggleStatus = async () => {
         setIsUpdating(true);
