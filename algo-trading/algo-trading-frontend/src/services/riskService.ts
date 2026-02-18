@@ -108,7 +108,7 @@ class RiskService extends EventEmitter {
         }
 
         // Per-order capital check  
-        const orderValue = order.quantity * (order.price || 0);
+        const orderValue = order.quantity * (order.limitPrice || order.filledPrice || order.placedPrice || 0);
         const maxAllowed = walletBalance * (this.config.maxCapitalPerOrder / 100);
         if (orderValue > maxAllowed && maxAllowed > 0) {
             return { allowed: false, reason: `Order value ₹${orderValue.toFixed(0)} exceeds ${this.config.maxCapitalPerOrder}% of balance (₹${maxAllowed.toFixed(0)})` };
