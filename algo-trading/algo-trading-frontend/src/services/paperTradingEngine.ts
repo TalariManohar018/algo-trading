@@ -43,12 +43,32 @@ export interface ActivityEvent {
     data?: any;
 }
 
+export interface RiskLimits {
+    maxLossPerDay: number;
+    maxTradesPerDay: number;
+    maxCapitalPerTrade: number; // percent of startingCapital
+    startingCapital: number;
+}
+
+const DEFAULT_RISK_LIMITS: RiskLimits = {
+    maxLossPerDay: 5000,
+    maxTradesPerDay: 50,
+    maxCapitalPerTrade: 10,
+    startingCapital: 100000,
+};
+
 class PaperTradingEngine extends EventEmitter {
     private status: EngineStatus = 'STOPPED';
     private tradingMode: 'PAPER' | 'LIVE' = 'PAPER';
     private strategies: Map<string, ExecutableStrategy> = new Map();
     private strategyStates: Map<string, EvaluationState> = new Map();
+    /** Per-strategy daily trade count */
     private dailyTradeCount: Map<string, number> = new Map();
+    /** Global daily trade count across all strategies */
+    private globalDailyTradeCount: number = 0;
+    /** Total realised loss today (updated externally by TradingContext on position close) */
+    private dailyLossAmount: number = 0;
+    private riskLimits: RiskLimits = { ...DEFAULT_RISK_LIMITS };
     private unsubscribe: (() => void) | null = null;
 
     constructor() {
@@ -77,6 +97,26 @@ class PaperTradingEngine extends EventEmitter {
 
     getTradingMode(): 'PAPER' | 'LIVE' {
         return this.tradingMode;
+    }
+
+    /** Sync risk limits from Settings (called by TradingContext on settings change) */
+    setRiskLimits(limits: RiskLimits): void {
+        this.riskLimits = { ...limits };
+        console.log(`[TradingEngine] Risk limits updated | maxLossPerDay: ₹${limits.maxLossPerDay} | maxTrades: ${limits.maxTradesPerDay} | maxCapital/trade: ${limits.maxCapitalPerTrade}%`);
+    }
+
+    /** Called by TradingContext each time a position closes with its realised loss */
+    updateDailyLoss(lossAmount: number): void {
+        if (lossAmount > 0) {
+            this.dailyLossAmount += lossAmount;
+            console.log(`[TradingEngine] Daily loss updated: ₹${this.dailyLossAmount.toFixed(2)} / ₹${this.riskLimits.maxLossPerDay}`);
+            if (this.dailyLossAmount >= this.riskLimits.maxLossPerDay) {
+                const msg = `Daily loss limit reached: ₹${this.dailyLossAmount.toFixed(2)} ≥ ₹${this.riskLimits.maxLossPerDay}`;
+                console.warn(`[TradingEngine] RISK LOCK — ${msg}`);
+                this.emitActivity('risk_breach', msg, { dailyLoss: this.dailyLossAmount, limit: this.riskLimits.maxLossPerDay });
+                this.emit('riskBreached', msg);
+            }
+        }
     }
 
     getStatus(): EngineStatus {
@@ -195,7 +235,31 @@ class PaperTradingEngine extends EventEmitter {
             const hasOpenPosition = positions.some(p => p.status === 'OPEN');
 
             if (hasOpenPosition) {
-                // Evaluate exit conditions
+                // ── AUTO-EXIT: Stop-loss / Take-profit ──────────────────
+                if (strategy.riskConfig) {
+                    const slPercent = strategy.riskConfig.stopLossPercent;
+                    const tpPercent = strategy.riskConfig.takeProfitPercent;
+                    if (slPercent || tpPercent) {
+                        const openPositions = positions.filter(p => p.status === 'OPEN' && p.strategyId === strategy.id);
+                        for (const pos of openPositions) {
+                            const updated = paperPositionService.updateUnrealizedPnl(pos, candle.close);
+                            const { shouldClose, reason } = paperPositionService.shouldAutoExit(updated, {
+                                stopLossPercent: slPercent ?? 999,
+                                takeProfitPercent: tpPercent ?? 999,
+                            });
+                            if (shouldClose) {
+                                this.emitActivity('auto_exit', `Auto-exit triggered for ${strategy.name}: ${reason}`, {
+                                    strategy: strategy.name, price: candle.close, reason
+                                });
+                                console.log(`[TradingEngine] Auto-exit | ${strategy.name} | ${reason} | Exit price: ₹${candle.close}`);
+                                this.emit('exitSignal', strategy.id, candle.close);
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                // Evaluate user-defined exit conditions
                 const shouldExit = conditionEvaluator.evaluateConditions(
                     strategy.exitConditions,
                     candle,
@@ -210,7 +274,7 @@ class PaperTradingEngine extends EventEmitter {
                     this.emit('exitSignal', strategy.id, candle.close);
                 }
             } else {
-                // Check daily trade limit
+                // Check per-strategy daily trade limit
                 const tradeCount = this.dailyTradeCount.get(strategy.id) || 0;
                 if (tradeCount >= strategy.maxTradesPerDay) {
                     return;
@@ -228,16 +292,18 @@ class PaperTradingEngine extends EventEmitter {
                         strategy: strategy.name,
                         price: candle.close
                     });
-                    await this.handleEntrySignal(strategy, candle.close);
+                    // Determine side from strategy config (default BUY for LONG strategies)
+                    const side = (strategy as any).side === 'SELL' ? 'SELL' : 'BUY';
+                    await this.handleEntrySignal(strategy, candle.close, side);
                 }
             }
         });
     }
 
-    private async handleEntrySignal(strategy: ExecutableStrategy, currentPrice: number): Promise<void> {
+    private async handleEntrySignal(strategy: ExecutableStrategy, currentPrice: number, side: 'BUY' | 'SELL' = 'BUY'): Promise<void> {
         try {
             // ── MODE GUARD ──────────────────────────────────────────────
-            console.log(`[TradingEngine] Order request | Mode: ${this.tradingMode} | Strategy: ${strategy.name} | Symbol: ${strategy.symbol} | Price: ₹${currentPrice}`);
+            console.log(`[TradingEngine] Order request | Mode: ${this.tradingMode} | Strategy: ${strategy.name} | Symbol: ${strategy.symbol} | Side: ${side} | Price: ₹${currentPrice}`);
 
             if (this.tradingMode === 'LIVE') {
                 const msg = `[LIVE MODE BLOCKED] Order for ${strategy.name} (${strategy.symbol}) blocked — broker not connected.`;
@@ -246,55 +312,89 @@ class PaperTradingEngine extends EventEmitter {
                 return;
             }
 
-            // Paper trade execution below
-            console.log(`[TradingEngine] Executing PAPER trade | Symbol: ${strategy.symbol} | Qty: ${strategy.quantity} | Price: ₹${currentPrice}`);
+            // ── GLOBAL DAILY TRADE LIMIT ────────────────────────────────
+            if (this.globalDailyTradeCount >= this.riskLimits.maxTradesPerDay) {
+                const msg = `Daily trade limit reached: ${this.globalDailyTradeCount}/${this.riskLimits.maxTradesPerDay} trades. No more orders today.`;
+                console.warn(`[TradingEngine] RISK BLOCK — ${msg}`);
+                this.emitActivity('risk_warning', msg);
+                this.emit('riskBreached', msg);
+                return;
+            }
 
-            // Check capital availability
+            // ── DAILY LOSS LIMIT ────────────────────────────────────────
+            if (this.dailyLossAmount >= this.riskLimits.maxLossPerDay) {
+                const msg = `Daily loss limit reached: ₹${this.dailyLossAmount.toFixed(2)}/₹${this.riskLimits.maxLossPerDay}. Engine locked.`;
+                console.warn(`[TradingEngine] RISK BLOCK — ${msg}`);
+                this.emitActivity('risk_warning', msg);
+                this.emit('riskBreached', msg);
+                return;
+            }
+
+            // ── MAX CAPITAL PER TRADE ───────────────────────────────────
+            const maxCapital = (this.riskLimits.maxCapitalPerTrade / 100) * this.riskLimits.startingCapital;
             const requiredCapital = paperPositionService.calculateRequiredCapital(
                 { quantity: strategy.quantity } as any,
                 currentPrice
             );
+            const tradeValue = currentPrice * strategy.quantity;
 
-            if (!paperWalletService.hasAvailable(requiredCapital)) {
-                this.emitActivity('risk_warning', `Insufficient capital for ${strategy.name}`, {
-                    required: requiredCapital,
-                    available: paperWalletService.getWallet().availableMargin
-                });
+            if (tradeValue > maxCapital) {
+                const msg = `Trade value ₹${tradeValue.toFixed(0)} exceeds max capital per trade ₹${maxCapital.toFixed(0)} (${this.riskLimits.maxCapitalPerTrade}% of ₹${this.riskLimits.startingCapital}). Reduce quantity.`;
+                console.warn(`[TradingEngine] RISK BLOCK — ${msg}`);
+                this.emitActivity('risk_warning', msg, { strategy: strategy.name });
+                this.emit('orderRejected', { reason: msg, strategy: strategy.name, symbol: strategy.symbol });
                 return;
             }
 
-            // Create order
+            // ── WALLET AVAILABILITY ─────────────────────────────────────
+            console.log(`[TradingEngine] Executing PAPER ${side} trade | Symbol: ${strategy.symbol} | Qty: ${strategy.quantity} | Price: ₹${currentPrice}`);
+
+            if (!paperWalletService.hasAvailable(requiredCapital)) {
+                const wallet = paperWalletService.getWallet();
+                const msg = `Insufficient margin for ${strategy.name}: need ₹${requiredCapital.toFixed(0)}, available ₹${wallet.availableMargin.toFixed(0)}`;
+                this.emitActivity('risk_warning', msg, {
+                    required: requiredCapital,
+                    available: wallet.availableMargin
+                });
+                this.emit('orderRejected', { reason: msg, strategy: strategy.name, symbol: strategy.symbol });
+                return;
+            }
+
+            // ── CREATE ORDER ─────────────────────────────────────────────
             const orderData = {
                 strategyId: strategy.id,
                 strategyName: strategy.name,
                 symbol: strategy.symbol,
-                side: 'BUY' as const,
+                side,
                 quantity: strategy.quantity,
                 orderType: strategy.orderType
             };
 
             let order = await paperOrderService.createOrder(orderData);
             this.emit('orderCreated', order);
-            this.emitActivity('order_created', `Order created for ${strategy.name}`, { orderId: order.id });
+            this.emitActivity('order_created', `${side} order created for ${strategy.name}`, { orderId: order.id });
 
             // Reserve capital
             if (!paperWalletService.reserveCapital(requiredCapital)) {
                 this.emitActivity('risk_warning', 'Failed to reserve capital', { orderId: order.id });
+                this.emit('orderRejected', { reason: 'Failed to reserve capital', strategy: strategy.name, symbol: strategy.symbol });
                 return;
             }
 
-            // Place order
+            // ── PLACE ORDER ──────────────────────────────────────────────
             order = await paperOrderService.placeOrder(order, currentPrice);
             this.emit('orderUpdated', order);
 
             if (order.status === 'REJECTED') {
-                this.emitActivity('order_rejected', `Order rejected: ${order.rejectedReason}`, { orderId: order.id });
+                const reason = order.rejectedReason || 'Simulated rejection';
+                this.emitActivity('order_rejected', `Order rejected for ${strategy.name}: ${reason}`, { orderId: order.id });
                 paperWalletService.releaseCapital(requiredCapital);
+                this.emit('orderRejected', { reason, strategy: strategy.name, symbol: strategy.symbol });
                 return;
             }
 
             if (order.status === 'FILLED') {
-                this.emitActivity('order_filled', `Order filled for ${strategy.name} at ₹${order.filledPrice}`, {
+                this.emitActivity('order_filled', `${side} order filled for ${strategy.name} at ₹${order.filledPrice}`, {
                     orderId: order.id,
                     price: order.filledPrice
                 });
@@ -302,18 +402,29 @@ class PaperTradingEngine extends EventEmitter {
                 // Open position
                 const position = paperPositionService.openPosition(order, order.filledPrice!);
                 this.emit('positionOpened', position);
-                this.emitActivity('position_opened', `Position opened for ${strategy.name}`, {
+                this.emitActivity('position_opened', `${side} position opened for ${strategy.name} | ${strategy.symbol} @ ₹${order.filledPrice}`, {
                     positionId: position.id,
                     price: order.filledPrice
                 });
 
-                // Increment trade count
-                const count = this.dailyTradeCount.get(strategy.id) || 0;
-                this.dailyTradeCount.set(strategy.id, count + 1);
+                // Increment counters
+                const stratCount = this.dailyTradeCount.get(strategy.id) || 0;
+                this.dailyTradeCount.set(strategy.id, stratCount + 1);
+                this.globalDailyTradeCount += 1;
 
-                // ── LOG WALLET AFTER TRADE ──────────────────────────────
+                // ── TRADE FILLED TOAST EVENT ─────────────────────────────
+                this.emit('tradeFilled', {
+                    strategyName: strategy.name,
+                    symbol: strategy.symbol,
+                    side,
+                    quantity: order.filledQuantity || order.quantity,
+                    price: order.filledPrice,
+                    positionId: position.id,
+                });
+
+                // ── LOG WALLET AFTER TRADE ───────────────────────────────
                 const walletAfter = paperWalletService.getWallet();
-                console.log(`[TradingEngine] PAPER trade executed | Type: paper | Symbol: ${strategy.symbol} | Qty: ${strategy.quantity} | Fill price: ₹${order.filledPrice} | Wallet balance: ₹${walletAfter.balance.toFixed(2)} | Available margin: ₹${walletAfter.availableMargin.toFixed(2)} | Used margin: ₹${walletAfter.usedMargin.toFixed(2)}`);
+                console.log(`[TradingEngine] PAPER trade executed | Type: paper | Symbol: ${strategy.symbol} | Side: ${side} | Qty: ${strategy.quantity} | Fill price: ₹${order.filledPrice} | Wallet balance: ₹${walletAfter.balance.toFixed(2)} | Available margin: ₹${walletAfter.availableMargin.toFixed(2)} | Used margin: ₹${walletAfter.usedMargin.toFixed(2)}`);
             }
         } catch (error) {
             console.error('Error handling entry signal:', error);
@@ -334,7 +445,10 @@ class PaperTradingEngine extends EventEmitter {
 
     resetDailyCounters(): void {
         this.dailyTradeCount.clear();
-        this.emitActivity('system', 'Daily trade counters reset');
+        this.globalDailyTradeCount = 0;
+        this.dailyLossAmount = 0;
+        this.emitActivity('system', 'Daily trade counters and loss tracking reset');
+        console.log('[TradingEngine] Daily counters reset');
     }
 }
 

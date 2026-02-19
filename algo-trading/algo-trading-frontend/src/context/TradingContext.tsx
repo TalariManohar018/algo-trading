@@ -1,8 +1,9 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { paperTradingEngine, ActivityEvent, ExecutableStrategy } from '../services/paperTradingEngine';
 import { paperWalletService } from '../services/paperWalletService';
 import { paperPositionService } from '../services/paperPositionService';
 import { useSettings } from './SettingsContext';
+import { useError } from './ErrorContext';
 
 export type OrderStatus = 'CREATED' | 'PLACED' | 'PARTIALLY_FILLED' | 'FILLED' | 'REJECTED' | 'CANCELLED' | 'CLOSED';
 export type PositionStatus = 'OPEN' | 'CLOSED';
@@ -38,6 +39,7 @@ export interface Position {
     currentPrice: number;
     unrealizedPnl: number;
     realizedPnl: number;
+    marginUsed?: number;
     status: PositionStatus;
     openedAt: Date;
     closedAt?: Date;
@@ -117,12 +119,10 @@ export const useTradingContext = () => {
 
 export const TradingProvider = ({ children }: { children: ReactNode }) => {
     const { settings } = useSettings();
+    const { showSuccess, showError } = useError();
 
-    // Sync trading mode to engine whenever settings change
-    useEffect(() => {
-        paperTradingEngine.setTradingMode(settings.tradingMode);
-        console.log(`[TradingContext] Trading mode synced to engine: ${settings.tradingMode}`);
-    }, [settings.tradingMode]);
+    // ── State ─────────────────────────────────────────────────────────────────
+
     const [orders, setOrders] = useState<Order[]>(() => {
         const saved = localStorage.getItem('trading_orders');
         return saved ? JSON.parse(saved) : [];
@@ -138,9 +138,7 @@ export const TradingProvider = ({ children }: { children: ReactNode }) => {
         return saved ? JSON.parse(saved) : [];
     });
 
-    const [wallet, setWallet] = useState<WalletState>(() => {
-        return paperWalletService.getWallet();
-    });
+    const [wallet, setWallet] = useState<WalletState>(() => paperWalletService.getWallet());
 
     const [riskState, setRiskState] = useState<RiskState>(() => {
         const saved = localStorage.getItem('trading_risk_state');
@@ -164,38 +162,126 @@ export const TradingProvider = ({ children }: { children: ReactNode }) => {
         return saved ? JSON.parse(saved) : [];
     });
 
-    // Connect to paper trading engine events
+    // ── Stable refs — prevent stale closures in one-time event handlers ────────
+
+    const positionsRef = useRef<Position[]>(positions);
+    const engineStatusRef = useRef<EngineStatus>(engineStatus);
+
+    useEffect(() => { positionsRef.current = positions; }, [positions]);
+    useEffect(() => { engineStatusRef.current = engineStatus; }, [engineStatus]);
+
+    // ── Sync settings → engine ────────────────────────────────────────────────
+
     useEffect(() => {
-        const handleOrderCreated = (order: Order) => addOrder(order);
-        const handleOrderUpdated = (order: Order) => updateOrder(order.id, order);
-        const handlePositionOpened = (position: Position) => addPosition(position);
-        const handleActivity = (event: ActivityEvent) => addActivity(event);
-        const handleStatusChange = (status: EngineStatus) => setEngineStatus(status);
+        paperTradingEngine.setTradingMode(settings.tradingMode);
+        console.log(`[TradingContext] Trading mode synced to engine: ${settings.tradingMode}`);
+    }, [settings.tradingMode]);
 
-        const handleUpdateUnrealizedPnl = (data: { symbol: string; price: number }) => {
-            setPositions(prev => prev.map(pos => {
-                if (pos.symbol === data.symbol && pos.status === 'OPEN') {
-                    const updated = paperPositionService.updateUnrealizedPnl(pos, data.price);
-                    return updated;
-                }
-                return pos;
-            }));
+    useEffect(() => {
+        paperTradingEngine.setRiskLimits({
+            maxLossPerDay: settings.maxLossPerDay,
+            maxTradesPerDay: settings.maxTradesPerDay,
+            maxCapitalPerTrade: settings.maxCapitalPerTrade,
+            startingCapital: settings.startingCapital,
+        });
+    }, [settings.maxLossPerDay, settings.maxTradesPerDay, settings.maxCapitalPerTrade, settings.startingCapital]);
 
-            // Update total unrealized PnL
-            const totalUnrealized = positions
-                .filter(p => p.status === 'OPEN')
-                .reduce((sum, p) => sum + p.unrealizedPnl, 0);
-            paperWalletService.updateUnrealizedPnl(totalUnrealized);
+    // ── Internal close (uses position object directly to avoid stale state) ────
+
+    const closePositionInternal = (position: Position, exitPrice: number) => {
+        const { position: closedPosition, trade } = paperPositionService.closePosition(position, exitPrice);
+
+        setPositions(prev => prev.map(p => p.id === position.id ? closedPosition : p));
+        setTrades(prev => [trade, ...prev]);
+
+        // Release exact locked margin; fall back to 20% if missing
+        const marginToRelease = position.marginUsed ?? (position.entryPrice * position.quantity * 0.2);
+        paperWalletService.releaseCapital(marginToRelease);
+        paperWalletService.recordRealizedPnl(trade.pnl);
+        setWallet(paperWalletService.getWallet());
+
+        // Inform engine about realised loss for daily loss tracking
+        if (trade.pnl < 0) {
+            paperTradingEngine.updateDailyLoss(Math.abs(trade.pnl));
+        }
+
+        setRiskState(prev => ({
+            ...prev,
+            dailyLoss: prev.dailyLoss + (trade.pnl < 0 ? Math.abs(trade.pnl) : 0),
+            dailyTradeCount: prev.dailyTradeCount + 1,
+        }));
+
+        const pnlStr = trade.pnl >= 0 ? `+₹${trade.pnl.toFixed(2)}` : `-₹${Math.abs(trade.pnl).toFixed(2)}`;
+        showSuccess(`Position closed — ${position.symbol} | PnL: ${pnlStr}`);
+        console.log(`[TradingContext] Position closed | ${position.symbol} | Entry ₹${position.entryPrice} → Exit ₹${exitPrice} | PnL ${pnlStr}`);
+    };
+
+    // ── Engine event handlers (registered once, use refs for live data) ────────
+
+    useEffect(() => {
+        const handleOrderCreated = (order: Order) => {
+            setOrders(prev => [...prev, order]);
+        };
+
+        const handleOrderUpdated = (order: Order) => {
+            setOrders(prev => prev.map(o => o.id === order.id ? { ...o, ...order } : o));
+        };
+
+        const handlePositionOpened = (position: Position) => {
+            setPositions(prev => [...prev, position]);
             setWallet(paperWalletService.getWallet());
         };
 
-        const handleCheckPositions = (_strategyId: string, callback: (positions: Position[]) => void) => {
-            callback(positions);
+        const handleActivity = (event: ActivityEvent) => {
+            setActivityLog(prev => [event, ...prev].slice(0, 100));
+        };
+
+        const handleStatusChange = (status: EngineStatus) => {
+            setEngineStatus(status);
+        };
+
+        // Real-time unrealised PnL — uses functional setState to avoid stale snapshots
+        const handleUpdateUnrealizedPnl = (data: { symbol: string; price: number }) => {
+            setPositions(prev => {
+                const updated = prev.map(pos =>
+                    (pos.symbol === data.symbol && pos.status === 'OPEN')
+                        ? paperPositionService.updateUnrealizedPnl(pos, data.price)
+                        : pos
+                );
+                const totalUnrealized = updated
+                    .filter(p => p.status === 'OPEN')
+                    .reduce((sum, p) => sum + p.unrealizedPnl, 0);
+                paperWalletService.updateUnrealizedPnl(totalUnrealized);
+                setWallet(paperWalletService.getWallet());
+                return updated;
+            });
+        };
+
+        // Provide live positions to engine without re-subscribing on every change
+        const handleCheckPositions = (strategyId: string, callback: (positions: Position[]) => void) => {
+            callback(positionsRef.current.filter(p => p.strategyId === strategyId));
         };
 
         const handleExitSignal = (strategyId: string, exitPrice: number) => {
-            const openPositions = positions.filter(p => p.strategyId === strategyId && p.status === 'OPEN');
-            openPositions.forEach(pos => closePosition(pos.id, exitPrice));
+            const openPositions = positionsRef.current.filter(
+                p => p.strategyId === strategyId && p.status === 'OPEN'
+            );
+            openPositions.forEach(pos => closePositionInternal(pos, exitPrice));
+        };
+
+        const handleTradeFilled = (data: { strategyName: string; symbol: string; side: string; quantity: number; price: number }) => {
+            showSuccess(`${data.side} filled — ${data.symbol} × ${data.quantity} @ ₹${data.price?.toFixed(2)} (${data.strategyName})`);
+        };
+
+        const handleOrderRejected = (data: { reason: string; strategy: string; symbol: string }) => {
+            showError(`Order rejected for ${data.strategy} (${data.symbol}): ${data.reason}`);
+        };
+
+        const handleRiskBreached = (reason: string) => {
+            setRiskState(prev => ({ ...prev, isLocked: true, lockReason: reason }));
+            setEngineStatus('LOCKED');
+            showError(`Engine locked: ${reason}`);
+            console.warn(`[TradingContext] Engine LOCKED — ${reason}`);
         };
 
         paperTradingEngine.on('orderCreated', handleOrderCreated);
@@ -206,6 +292,9 @@ export const TradingProvider = ({ children }: { children: ReactNode }) => {
         paperTradingEngine.on('updateUnrealizedPnl', handleUpdateUnrealizedPnl);
         paperTradingEngine.on('checkPositions', handleCheckPositions);
         paperTradingEngine.on('exitSignal', handleExitSignal);
+        paperTradingEngine.on('tradeFilled', handleTradeFilled);
+        paperTradingEngine.on('orderRejected', handleOrderRejected);
+        paperTradingEngine.on('riskBreached', handleRiskBreached);
 
         return () => {
             paperTradingEngine.off('orderCreated', handleOrderCreated);
@@ -216,90 +305,45 @@ export const TradingProvider = ({ children }: { children: ReactNode }) => {
             paperTradingEngine.off('updateUnrealizedPnl', handleUpdateUnrealizedPnl);
             paperTradingEngine.off('checkPositions', handleCheckPositions);
             paperTradingEngine.off('exitSignal', handleExitSignal);
+            paperTradingEngine.off('tradeFilled', handleTradeFilled);
+            paperTradingEngine.off('orderRejected', handleOrderRejected);
+            paperTradingEngine.off('riskBreached', handleRiskBreached);
         };
-    }, [positions]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Intentionally empty — refs carry live data
 
-    // Persist to localStorage
-    useEffect(() => {
-        localStorage.setItem('trading_orders', JSON.stringify(orders));
-    }, [orders]);
+    // ── Persist to localStorage ───────────────────────────────────────────────
 
-    useEffect(() => {
-        localStorage.setItem('trading_positions', JSON.stringify(positions));
-    }, [positions]);
+    useEffect(() => { localStorage.setItem('trading_orders', JSON.stringify(orders)); }, [orders]);
+    useEffect(() => { localStorage.setItem('trading_positions', JSON.stringify(positions)); }, [positions]);
+    useEffect(() => { localStorage.setItem('trading_trades', JSON.stringify(trades)); }, [trades]);
+    useEffect(() => { localStorage.setItem('trading_risk_state', JSON.stringify(riskState)); }, [riskState]);
+    useEffect(() => { localStorage.setItem('trading_activity', JSON.stringify(activityLog)); }, [activityLog]);
+    useEffect(() => { localStorage.setItem('trading_strategies', JSON.stringify(strategies)); }, [strategies]);
 
-    useEffect(() => {
-        localStorage.setItem('trading_trades', JSON.stringify(trades));
-    }, [trades]);
+    // ── Public actions ────────────────────────────────────────────────────────
 
-    useEffect(() => {
-        localStorage.setItem('trading_risk_state', JSON.stringify(riskState));
-    }, [riskState]);
+    const addOrder = (order: Order) => setOrders(prev => [...prev, order]);
 
-    useEffect(() => {
-        localStorage.setItem('trading_activity', JSON.stringify(activityLog));
-    }, [activityLog]);
+    const updateOrder = (orderId: string, updates: Partial<Order>) =>
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updates } : o));
 
-    useEffect(() => {
-        localStorage.setItem('trading_strategies', JSON.stringify(strategies));
-    }, [strategies]);
+    const addPosition = (position: Position) => setPositions(prev => [...prev, position]);
 
-    const addOrder = (order: Order) => {
-        setOrders(prev => [...prev, order]);
-    };
-
-    const updateOrder = (orderId: string, updates: Partial<Order>) => {
-        setOrders(prev => prev.map(order =>
-            order.id === orderId ? { ...order, ...updates } : order
-        ));
-    };
-
-    const addPosition = (position: Position) => {
-        setPositions(prev => [...prev, position]);
-    };
-
-    const updatePosition = (positionId: string, updates: Partial<Position>) => {
-        setPositions(prev => prev.map(position =>
-            position.id === positionId ? { ...position, ...updates } : position
-        ));
-    };
+    const updatePosition = (positionId: string, updates: Partial<Position>) =>
+        setPositions(prev => prev.map(p => p.id === positionId ? { ...p, ...updates } : p));
 
     const closePosition = (positionId: string, exitPrice: number) => {
-        const position = positions.find(p => p.id === positionId);
+        const position = positionsRef.current.find(p => p.id === positionId);
         if (!position) return;
-
-        const { position: closedPosition, trade } = paperPositionService.closePosition(position, exitPrice);
-
-        // Update position
-        updatePosition(positionId, closedPosition);
-
-        // Create trade record
-        addTrade(trade);
-
-        // Release capital and update wallet
-        const marginReleased = position.entryPrice * position.quantity * 0.2;
-        paperWalletService.releaseCapital(marginReleased);
-        paperWalletService.recordRealizedPnl(trade.pnl);
-        setWallet(paperWalletService.getWallet());
-
-        // Update risk state
-        updateRiskState({
-            dailyLoss: riskState.dailyLoss + (trade.pnl < 0 ? Math.abs(trade.pnl) : 0),
-            dailyTradeCount: riskState.dailyTradeCount + 1,
-        });
+        closePositionInternal(position, exitPrice);
     };
 
-    const addTrade = (trade: Trade) => {
-        setTrades(prev => [trade, ...prev]);
-    };
+    const addTrade = (trade: Trade) => setTrades(prev => [trade, ...prev]);
 
-    const updateWallet = (updates: Partial<WalletState>) => {
-        setWallet(prev => ({ ...prev, ...updates }));
-    };
+    const updateWallet = (updates: Partial<WalletState>) => setWallet(prev => ({ ...prev, ...updates }));
 
-    const updateRiskState = (updates: Partial<RiskState>) => {
-        setRiskState(prev => ({ ...prev, ...updates }));
-    };
+    const updateRiskState = (updates: Partial<RiskState>) => setRiskState(prev => ({ ...prev, ...updates }));
 
     const lockEngine = (reason: string) => {
         setRiskState(prev => ({ ...prev, isLocked: true, lockReason: reason }));
@@ -308,26 +352,25 @@ export const TradingProvider = ({ children }: { children: ReactNode }) => {
 
     const unlockEngine = () => {
         setRiskState(prev => ({ ...prev, isLocked: false, lockReason: undefined }));
-        if (engineStatus === 'LOCKED') {
-            setEngineStatus('STOPPED');
-        }
+        if (engineStatusRef.current === 'LOCKED') setEngineStatus('STOPPED');
     };
 
     const resetDailyLimits = () => {
-        setRiskState(prev => ({ ...prev, dailyLoss: 0, dailyTradeCount: 0 }));
+        setRiskState(prev => ({ ...prev, dailyLoss: 0, dailyTradeCount: 0, isLocked: false, lockReason: undefined }));
         paperTradingEngine.resetDailyCounters();
+        showSuccess('Daily limits reset — engine unlocked');
     };
 
     const squareOffAll = () => {
-        const openPositions = positions.filter(p => p.status === 'OPEN');
-        openPositions.forEach(position => {
-            closePosition(position.id, position.currentPrice);
-        });
+        const openPositions = positionsRef.current.filter(p => p.status === 'OPEN');
+        openPositions.forEach(pos => closePositionInternal(pos, pos.currentPrice));
+        if (openPositions.length > 0) {
+            showSuccess(`Emergency square-off: closed ${openPositions.length} position(s)`);
+        }
     };
 
-    const addActivity = (event: ActivityEvent) => {
+    const addActivity = (event: ActivityEvent) =>
         setActivityLog(prev => [event, ...prev].slice(0, 100));
-    };
 
     const addStrategy = (strategy: ExecutableStrategy) => {
         setStrategies(prev => [...prev, strategy]);
@@ -348,14 +391,17 @@ export const TradingProvider = ({ children }: { children: ReactNode }) => {
         console.log(`[TradingContext] Starting engine | Mode: ${settings.tradingMode} | Strategies: ${strategies.length}`);
         await paperTradingEngine.startEngine();
         setEngineStatus('RUNNING');
-        console.log(`[TradingContext] Engine running | Virtual wallet: ₹${paperWalletService.getBalance().toFixed(2)}`);
+        const w = paperWalletService.getWallet();
+        console.log(`[TradingContext] Engine RUNNING | Wallet ₹${w.balance.toFixed(2)} | Available ₹${w.availableMargin.toFixed(2)}`);
+        showSuccess(`Engine started in ${settings.tradingMode} mode`);
     };
 
     const stopEngine = async () => {
         console.log('[TradingContext] Stopping engine');
         await paperTradingEngine.stopEngine();
         setEngineStatus('STOPPED');
-    };;
+        showSuccess('Engine stopped');
+    };
 
     return (
         <TradingContext.Provider
