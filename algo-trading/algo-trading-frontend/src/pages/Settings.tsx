@@ -1,17 +1,31 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
-import { User, Zap, Shield, Bell, Wallet, AlertTriangle, Clock, Calendar, HelpCircle } from 'lucide-react';
+import { User, Zap, Shield, Bell, Wallet, AlertTriangle, Clock, Calendar, HelpCircle, CheckCircle } from 'lucide-react';
 import { useError } from '../context/ErrorContext';
 
 export default function Settings() {
     const { user } = useAuth();
     const { settings, updateSettings, resetWallet } = useSettings();
-    const { showSuccess } = useError();
+    const { showSuccess, showError } = useError();
     const [showResetConfirm, setShowResetConfirm] = useState(false);
+    const [showLiveConfirm, setShowLiveConfirm] = useState(false);
 
     const handleSaveSettings = () => {
         showSuccess('Settings saved successfully');
+    };
+
+    const handleSetPaperMode = () => {
+        updateSettings({ tradingMode: 'PAPER' });
+        console.log('[Settings] Trading mode set to: PAPER');
+        showSuccess('Switched to Paper Trading mode — virtual wallet active');
+    };
+
+    const handleSetLiveMode = () => {
+        updateSettings({ tradingMode: 'LIVE' });
+        setShowLiveConfirm(false);
+        console.warn('[Settings] Trading mode set to: LIVE (broker not connected — execution will be blocked)');
+        showError('Live Trading mode selected — broker not connected. Trade execution will be blocked until broker credentials are configured.');
     };
 
     const handleResetWallet = () => {
@@ -40,57 +54,107 @@ export default function Settings() {
                         </div>
 
                         <div className="space-y-4">
+                            {/* Paper Trading */}
                             <div
-                                onClick={() => {
-                                    updateSettings({ tradingMode: 'PAPER' });
-                                    handleSaveSettings();
-                                }}
+                                onClick={handleSetPaperMode}
                                 className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${settings.tradingMode === 'PAPER'
-                                    ? 'border-blue-600 bg-blue-50'
-                                    : 'border-gray-200 hover:border-gray-300'
+                                        ? 'border-blue-600 bg-blue-50'
+                                        : 'border-gray-200 hover:border-blue-300 bg-white'
                                     }`}
                             >
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <div className="flex items-center space-x-2">
                                             <h3 className="font-semibold text-gray-900">Paper Trading</h3>
-                                            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
-                                                Active
-                                            </span>
+                                            {settings.tradingMode === 'PAPER' && (
+                                                <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded flex items-center gap-1">
+                                                    <CheckCircle className="h-3 w-3" /> Active
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="text-sm text-gray-500 mt-1">
                                             Trade with virtual money. Perfect for testing strategies risk-free.
                                         </p>
+                                        <p className="text-xs text-emerald-600 mt-1 font-medium">
+                                            Virtual wallet: ₹{settings.startingCapital.toLocaleString('en-IN')} — No real money at risk
+                                        </p>
                                     </div>
-                                    {settings.tradingMode === 'PAPER' && (
-                                        <div className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                                            <div className="h-2 w-2 bg-white rounded-full"></div>
-                                        </div>
-                                    )}
+                                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${settings.tradingMode === 'PAPER' ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                                        }`}>
+                                        {settings.tradingMode === 'PAPER' && <div className="h-2 w-2 bg-white rounded-full" />}
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="p-4 rounded-lg border-2 border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed">
+                            {/* Live Trading */}
+                            <div
+                                onClick={() => setShowLiveConfirm(true)}
+                                className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${settings.tradingMode === 'LIVE'
+                                        ? 'border-red-500 bg-red-50'
+                                        : 'border-gray-200 hover:border-red-300 bg-white'
+                                    }`}
+                            >
                                 <div className="flex items-start justify-between">
                                     <div>
                                         <div className="flex items-center space-x-2">
-                                            <h3 className="font-semibold text-gray-700">Live Trading</h3>
-                                            <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">
-                                                Coming Soon
-                                            </span>
+                                            <h3 className="font-semibold text-gray-900">Live Trading</h3>
+                                            {settings.tradingMode === 'LIVE' && (
+                                                <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded flex items-center gap-1">
+                                                    <CheckCircle className="h-3 w-3" /> Active
+                                                </span>
+                                            )}
+                                            {settings.tradingMode !== 'LIVE' && (
+                                                <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">
+                                                    Broker Required
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="text-sm text-gray-500 mt-1">
                                             Trade with real money. Requires broker connection.
                                         </p>
                                         <div className="flex items-center space-x-1 mt-2">
-                                            <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                                            <span className="text-xs text-yellow-600 font-medium">
-                                                Broker not connected
+                                            <AlertTriangle className="h-3.5 w-3.5 text-yellow-600" />
+                                            <span className="text-xs text-yellow-700 font-medium">
+                                                Broker not connected — orders will be blocked
                                             </span>
                                         </div>
                                     </div>
+                                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${settings.tradingMode === 'LIVE' ? 'border-red-500 bg-red-500' : 'border-gray-300'
+                                        }`}>
+                                        {settings.tradingMode === 'LIVE' && <div className="h-2 w-2 bg-white rounded-full" />}
+                                    </div>
                                 </div>
                             </div>
+
+                            {/* Live Mode confirmation dialog */}
+                            {showLiveConfirm && (
+                                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                                    <div className="flex items-start gap-2 mb-3">
+                                        <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-sm font-semibold text-red-900">Switch to Live Trading?</p>
+                                            <p className="text-xs text-red-700 mt-1">
+                                                Live mode is selected but broker is not connected. Trade execution will be blocked.
+                                                Configure Angel One credentials in <strong>.env</strong> to enable real trading.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleSetLiveMode}
+                                            className="btn btn-danger btn-sm"
+                                        >
+                                            Set Live Mode (No Execution)
+                                        </button>
+                                        <button
+                                            onClick={() => setShowLiveConfirm(false)}
+                                            className="btn btn-secondary btn-sm"
+                                        >
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 

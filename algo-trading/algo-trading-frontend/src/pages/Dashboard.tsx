@@ -160,6 +160,12 @@ export default function Dashboard() {
             return;
         }
 
+        if (tradingContext.tradingMode === 'LIVE') {
+            showError('Live Trading mode is active but broker is not connected. Switch to Paper Trading in Settings to execute trades.');
+            console.warn('[Dashboard] Engine start blocked — LIVE mode, broker not connected');
+            return;
+        }
+
         if (tradingContext.strategies.length === 0) {
             showError('Please add at least one strategy before starting the engine');
             return;
@@ -167,7 +173,8 @@ export default function Dashboard() {
 
         try {
             await tradingContext.startEngine();
-            showSuccess('Paper trading engine started');
+            showSuccess(`Paper trading engine started — using virtual wallet`);
+            console.log(`[Dashboard] Engine started | Mode: ${tradingContext.tradingMode}`);
         } catch (error: any) {
             showError(error.message || 'Failed to start engine');
         }
@@ -354,11 +361,9 @@ export default function Dashboard() {
                 {/* Engine Controls */}
                 <div className="flex items-center gap-2 flex-wrap">
                     {/* Trading Mode Badge */}
-                    <span className={`badge text-xs font-bold px-3 py-1.5 ${settings.tradingMode === 'PAPER'
-                        ? 'badge-green'
-                        : 'badge-red'
+                    <span className={`badge text-xs font-bold px-3 py-1.5 ${tradingContext.tradingMode === 'PAPER' ? 'badge-green' : 'badge-red'
                         }`}>
-                        {settings.tradingMode} MODE
+                        {tradingContext.tradingMode} MODE
                     </span>
 
                     {/* Engine Status */}
@@ -407,13 +412,22 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* Paper Trading Banner */}
-            <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                <Info className="h-4 w-4 text-amber-600 shrink-0" />
-                <span className="text-sm font-medium text-amber-800">
-                    Paper Trading Mode — No real trades are being executed
-                </span>
-            </div>
+            {/* Mode Banner */}
+            {tradingContext.tradingMode === 'PAPER' ? (
+                <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span className="text-sm font-medium text-amber-800">
+                        Paper Trading Mode — No real trades are being executed. Virtual wallet: ₹{settings.startingCapital.toLocaleString('en-IN')}
+                    </span>
+                </div>
+            ) : (
+                <div className="flex items-center gap-3 bg-red-50 border border-red-300 rounded-xl px-4 py-3">
+                    <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                    <span className="text-sm font-semibold text-red-800">
+                        Live Trading Mode active — Broker not connected. All order execution is blocked.
+                    </span>
+                </div>
+            )}
 
             {/* Risk Locked Banner */}
             {isEngineLocked && (
@@ -426,8 +440,8 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Live Trading Warning Banner */}
-            {settings.tradingMode === 'LIVE' && (
+            {/* Live Trading Separately Disabled Banner */}
+            {tradingContext.tradingMode === 'LIVE' && (
                 <div className="flex items-start gap-3 bg-red-50 border-l-4 border-red-500 rounded-xl px-4 py-3">
                     <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
                     <div>

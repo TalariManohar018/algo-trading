@@ -45,10 +45,39 @@ export interface ActivityEvent {
 
 class PaperTradingEngine extends EventEmitter {
     private status: EngineStatus = 'STOPPED';
+    private tradingMode: 'PAPER' | 'LIVE' = 'PAPER';
     private strategies: Map<string, ExecutableStrategy> = new Map();
     private strategyStates: Map<string, EvaluationState> = new Map();
     private dailyTradeCount: Map<string, number> = new Map();
     private unsubscribe: (() => void) | null = null;
+
+    constructor() {
+        super();
+        // Restore mode from localStorage on init
+        const storedSettings = localStorage.getItem('algotrader_settings');
+        if (storedSettings) {
+            try {
+                const parsed = JSON.parse(storedSettings);
+                if (parsed.tradingMode === 'LIVE' || parsed.tradingMode === 'PAPER') {
+                    this.tradingMode = parsed.tradingMode;
+                }
+            } catch { /* ignore */ }
+        }
+        console.log(`[TradingEngine] Initialized | Mode: ${this.tradingMode}`);
+    }
+
+    /** Set trading mode. Paper: simulate with virtual wallet. Live: blocked if broker not connected. */
+    setTradingMode(mode: 'PAPER' | 'LIVE'): void {
+        const prev = this.tradingMode;
+        this.tradingMode = mode;
+        console.log(`[TradingEngine] Mode changed: ${prev} → ${mode}`);
+        this.emitActivity('mode_change', `Trading mode set to ${mode}`, { mode });
+        this.emit('modeChanged', mode);
+    }
+
+    getTradingMode(): 'PAPER' | 'LIVE' {
+        return this.tradingMode;
+    }
 
     getStatus(): EngineStatus {
         return this.status;
@@ -82,9 +111,17 @@ class PaperTradingEngine extends EventEmitter {
             throw new Error('Engine already running');
         }
 
+        if (this.tradingMode === 'LIVE') {
+            // Live mode: block engine start — broker not connected
+            const msg = 'Live trading is disabled. Broker not connected. Switch to Paper Trading to continue.';
+            console.warn(`[TradingEngine] START BLOCKED — ${msg}`);
+            this.emitActivity('live_blocked', msg);
+            throw new Error(msg);
+        }
+
         this.status = 'RUNNING';
         this.emit('statusChange', 'RUNNING');
-        this.emitActivity('engine_started', 'Trading engine started');
+        this.emitActivity('engine_started', `Trading engine started in ${this.tradingMode} mode`);
 
         // Start market data simulator
         if (!marketDataSimulator.isActive()) {
@@ -96,7 +133,8 @@ class PaperTradingEngine extends EventEmitter {
             this.onCandleClose(candle);
         });
 
-        console.log('Trading engine started');
+        const wallet = paperWalletService.getWallet();
+        console.log(`[TradingEngine] Engine started | Mode: ${this.tradingMode} | Virtual wallet: ₹${wallet.balance.toFixed(2)} | Available margin: ₹${wallet.availableMargin.toFixed(2)}`);
     }
 
     async stopEngine(): Promise<void> {
@@ -198,6 +236,19 @@ class PaperTradingEngine extends EventEmitter {
 
     private async handleEntrySignal(strategy: ExecutableStrategy, currentPrice: number): Promise<void> {
         try {
+            // ── MODE GUARD ──────────────────────────────────────────────
+            console.log(`[TradingEngine] Order request | Mode: ${this.tradingMode} | Strategy: ${strategy.name} | Symbol: ${strategy.symbol} | Price: ₹${currentPrice}`);
+
+            if (this.tradingMode === 'LIVE') {
+                const msg = `[LIVE MODE BLOCKED] Order for ${strategy.name} (${strategy.symbol}) blocked — broker not connected.`;
+                console.warn(`[TradingEngine] ${msg}`);
+                this.emitActivity('live_blocked', msg, { strategy: strategy.name, symbol: strategy.symbol });
+                return;
+            }
+
+            // Paper trade execution below
+            console.log(`[TradingEngine] Executing PAPER trade | Symbol: ${strategy.symbol} | Qty: ${strategy.quantity} | Price: ₹${currentPrice}`);
+
             // Check capital availability
             const requiredCapital = paperPositionService.calculateRequiredCapital(
                 { quantity: strategy.quantity } as any,
@@ -259,6 +310,10 @@ class PaperTradingEngine extends EventEmitter {
                 // Increment trade count
                 const count = this.dailyTradeCount.get(strategy.id) || 0;
                 this.dailyTradeCount.set(strategy.id, count + 1);
+
+                // ── LOG WALLET AFTER TRADE ──────────────────────────────
+                const walletAfter = paperWalletService.getWallet();
+                console.log(`[TradingEngine] PAPER trade executed | Type: paper | Symbol: ${strategy.symbol} | Qty: ${strategy.quantity} | Fill price: ₹${order.filledPrice} | Wallet balance: ₹${walletAfter.balance.toFixed(2)} | Available margin: ₹${walletAfter.availableMargin.toFixed(2)} | Used margin: ₹${walletAfter.usedMargin.toFixed(2)}`);
             }
         } catch (error) {
             console.error('Error handling entry signal:', error);

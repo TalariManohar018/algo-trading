@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { paperTradingEngine, ActivityEvent, ExecutableStrategy } from '../services/paperTradingEngine';
 import { paperWalletService } from '../services/paperWalletService';
 import { paperPositionService } from '../services/paperPositionService';
+import { useSettings } from './SettingsContext';
 
 export type OrderStatus = 'CREATED' | 'PLACED' | 'PARTIALLY_FILLED' | 'FILLED' | 'REJECTED' | 'CANCELLED' | 'CLOSED';
 export type PositionStatus = 'OPEN' | 'CLOSED';
@@ -80,6 +81,7 @@ interface TradingContextType {
     engineStatus: EngineStatus;
     activityLog: ActivityEvent[];
     strategies: ExecutableStrategy[];
+    tradingMode: 'PAPER' | 'LIVE';
 
     // Actions
     addOrder: (order: Order) => void;
@@ -114,6 +116,13 @@ export const useTradingContext = () => {
 };
 
 export const TradingProvider = ({ children }: { children: ReactNode }) => {
+    const { settings } = useSettings();
+
+    // Sync trading mode to engine whenever settings change
+    useEffect(() => {
+        paperTradingEngine.setTradingMode(settings.tradingMode);
+        console.log(`[TradingContext] Trading mode synced to engine: ${settings.tradingMode}`);
+    }, [settings.tradingMode]);
     const [orders, setOrders] = useState<Order[]>(() => {
         const saved = localStorage.getItem('trading_orders');
         return saved ? JSON.parse(saved) : [];
@@ -336,14 +345,17 @@ export const TradingProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const startEngine = async () => {
+        console.log(`[TradingContext] Starting engine | Mode: ${settings.tradingMode} | Strategies: ${strategies.length}`);
         await paperTradingEngine.startEngine();
         setEngineStatus('RUNNING');
+        console.log(`[TradingContext] Engine running | Virtual wallet: ₹${paperWalletService.getBalance().toFixed(2)}`);
     };
 
     const stopEngine = async () => {
+        console.log('[TradingContext] Stopping engine');
         await paperTradingEngine.stopEngine();
         setEngineStatus('STOPPED');
-    };
+    };;
 
     return (
         <TradingContext.Provider
@@ -356,6 +368,7 @@ export const TradingProvider = ({ children }: { children: ReactNode }) => {
                 engineStatus,
                 activityLog,
                 strategies,
+                tradingMode: settings.tradingMode,
                 addOrder,
                 updateOrder,
                 addPosition,
