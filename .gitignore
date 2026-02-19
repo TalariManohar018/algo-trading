@@ -30,3 +30,5 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+algo_trading.db
