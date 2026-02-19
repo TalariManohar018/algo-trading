@@ -324,8 +324,20 @@ export default function Dashboard() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-96">
-                <div className="text-gray-500">Loading dashboard...</div>
+            <div className="space-y-6">
+                <div className="page-header">
+                    <div>
+                        <div className="skeleton h-7 w-56 mb-2" />
+                        <div className="skeleton h-4 w-40" />
+                    </div>
+                    <div className="flex gap-2">
+                        <div className="skeleton h-9 w-28" />
+                        <div className="skeleton h-9 w-28" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map(i => <div key={i} className="stat-card"><div className="skeleton h-4 w-24 mb-3" /><div className="skeleton h-7 w-32" /></div>)}
+                </div>
             </div>
         );
     }
@@ -333,34 +345,32 @@ export default function Dashboard() {
     return (
         <div className="space-y-6 max-w-[1600px]">
             {/* Header with Trading Mode and Engine Controls */}
-            <div className="flex items-center justify-between">
+            <div className="page-header">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Trading Control Center</h1>
-                    <p className="text-sm text-gray-500 mt-1">Real-time overview of your trading operations</p>
+                    <h1 className="page-title">Trading Control Center</h1>
+                    <p className="page-sub">Real-time overview of your trading operations</p>
                 </div>
 
                 {/* Engine Controls */}
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center gap-2 flex-wrap">
                     {/* Trading Mode Badge */}
-                    <span className={`px-4 py-2 text-sm font-bold rounded-lg border-2 ${settings.tradingMode === 'PAPER'
-                        ? 'bg-green-50 text-green-700 border-green-300'
-                        : 'bg-red-50 text-red-700 border-red-300'
+                    <span className={`badge text-xs font-bold px-3 py-1.5 ${settings.tradingMode === 'PAPER'
+                        ? 'badge-green'
+                        : 'badge-red'
                         }`}>
                         {settings.tradingMode} MODE
                     </span>
 
                     {/* Engine Status */}
-                    <div className={`px-4 py-2 rounded-lg border-2 flex items-center space-x-2 ${isEngineRunning
-                        ? 'bg-green-50 text-green-700 border-green-300'
+                    <div className={`badge text-xs font-bold px-3 py-1.5 flex items-center gap-1.5 ${isEngineRunning
+                        ? 'badge-green'
                         : isEngineLocked
-                            ? 'bg-red-50 text-red-700 border-red-300'
-                            : 'bg-gray-50 text-gray-700 border-gray-300'
+                            ? 'badge-red'
+                            : 'badge-gray'
                         }`}>
-                        {isEngineRunning && <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />}
-                        {isEngineLocked && <AlertCircle className="h-4 w-4 text-red-600" />}
-                        <span className="text-sm font-bold">
-                            {isEngineRunning ? 'ENGINE RUNNING' : isEngineLocked ? 'ENGINE LOCKED' : 'ENGINE STOPPED'}
-                        </span>
+                        {isEngineRunning && <span className="live-dot" />}
+                        {isEngineLocked && <AlertCircle className="h-3 w-3" />}
+                        {isEngineRunning ? 'RUNNING' : isEngineLocked ? 'LOCKED' : 'STOPPED'}
                     </div>
 
                     {/* Engine Control Buttons */}
@@ -370,22 +380,16 @@ export default function Dashboard() {
                                 <button
                                     onClick={handleStartEngine}
                                     disabled={runningStrategies.length === 0}
-                                    className={`px-4 py-2 rounded-lg flex items-center space-x-2 font-medium transition-colors ${runningStrategies.length === 0
-                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                        : 'bg-green-600 hover:bg-green-700 text-white'
-                                        }`}
+                                    className="btn-success btn-sm"
                                     title={runningStrategies.length === 0 ? 'Start at least one strategy first' : 'Start engine'}
                                 >
-                                    <Play className="h-4 w-4" />
-                                    <span>Start Engine</span>
+                                    <Play className="h-3.5 w-3.5" />
+                                    Start Engine
                                 </button>
                             ) : (
-                                <button
-                                    onClick={handleStopEngine}
-                                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg flex items-center space-x-2 font-medium transition-colors"
-                                >
-                                    <Square className="h-4 w-4" />
-                                    <span>Stop Engine</span>
+                                <button onClick={handleStopEngine} className="btn btn-sm bg-orange-500 text-white hover:bg-orange-600">
+                                    <Square className="h-3.5 w-3.5" />
+                                    Stop Engine
                                 </button>
                             )}
                         </>
@@ -394,50 +398,41 @@ export default function Dashboard() {
                     {/* Emergency Stop Button */}
                     <button
                         onClick={handleEmergencyStop}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center space-x-2 font-bold transition-colors"
+                        className="btn-danger btn-sm font-bold"
                         title="Emergency stop - Square off all positions"
                     >
-                        <AlertCircle className="h-4 w-4" />
-                        <span>EMERGENCY STOP</span>
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        EMERGENCY STOP
                     </button>
                 </div>
             </div>
 
             {/* Paper Trading Banner */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-5 py-3 flex items-center space-x-3 shadow-sm">
-                <Info className="h-5 w-5 text-yellow-600 flex-shrink-0" />
-                <span className="text-sm font-semibold text-yellow-800">
-                    Paper Trading Mode — No Real Trades Are Being Executed
+            <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                <span className="text-sm font-medium text-amber-800">
+                    Paper Trading Mode — No real trades are being executed
                 </span>
             </div>
 
             {/* Risk Locked Banner */}
             {isEngineLocked && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl shadow-sm">
-                    <div className="flex items-start">
-                        <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                        <div className="ml-3">
-                            <h3 className="text-sm font-semibold text-red-900">ENGINE LOCKED - Risk Limit Breached</h3>
-                            <p className="text-sm text-red-700 mt-1">
-                                {tradingContext.riskState.lockReason}. All positions have been squared off.
-                                Update your risk limits in Settings to unlock.
-                            </p>
-                        </div>
+                <div className="flex items-start gap-3 bg-red-50 border-l-4 border-red-500 rounded-xl px-4 py-3">
+                    <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                    <div>
+                        <p className="text-sm font-semibold text-red-900">Engine Locked — Risk limit breached</p>
+                        <p className="text-xs text-red-700 mt-0.5">{tradingContext.riskState.lockReason}. Update risk limits in Settings to unlock.</p>
                     </div>
                 </div>
             )}
 
             {/* Live Trading Warning Banner */}
             {settings.tradingMode === 'LIVE' && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl shadow-sm">
-                    <div className="flex items-start">
-                        <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                        <div className="ml-3">
-                            <h3 className="text-sm font-semibold text-red-900">Live Trading Disabled</h3>
-                            <p className="text-sm text-red-700 mt-1">
-                                Broker not connected. Configure your broker credentials in Settings to enable live trading.
-                            </p>
-                        </div>
+                <div className="flex items-start gap-3 bg-red-50 border-l-4 border-red-500 rounded-xl px-4 py-3">
+                    <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                    <div>
+                        <p className="text-sm font-semibold text-red-900">Live Trading Disabled</p>
+                        <p className="text-xs text-red-700 mt-0.5">Broker not connected. Configure credentials in Settings.</p>
                     </div>
                 </div>
             )}
@@ -495,29 +490,21 @@ export default function Dashboard() {
 
             {/* Open Positions */}
             {openPositions.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Open Positions ({openPositions.length})</h2>
+                <div className="card p-5">
+                    <h2 className="section-title mb-4">Open Positions ({openPositions.length})</h2>
                     <div className="space-y-2">
                         {openPositions.map(position => (
                             <div key={position.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                <div className="flex items-center space-x-4">
-                                    <div>
-                                        <p className="font-medium text-gray-900">{position.symbol}</p>
-                                        <p className="text-sm text-gray-600">{position.strategyName}</p>
-                                    </div>
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded ${position.side === 'LONG'
-                                        ? 'bg-green-100 text-green-700'
-                                        : 'bg-red-100 text-red-700'
-                                        }`}>
+                                <div className="flex items-center gap-3">
+                                    <span className="font-semibold text-gray-900 text-sm">{position.symbol}</span>
+                                    <span className="text-xs text-gray-500">{position.strategyName}</span>
+                                    <span className={`badge ${position.side === 'LONG' ? 'badge-green' : 'badge-red'}`}>
                                         {position.side}
                                     </span>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-sm text-gray-600">
-                                        {position.quantity} @ ₹{position.entryPrice.toFixed(2)}
-                                    </p>
-                                    <p className={`text-sm font-semibold ${position.unrealizedPnl >= 0 ? 'text-green-600' : 'text-red-600'
-                                        }`}>
+                                    <p className="text-xs text-gray-500">{position.quantity} @ ₹{position.entryPrice.toFixed(2)}</p>
+                                    <p className={`text-sm font-semibold ${position.unrealizedPnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                                         {position.unrealizedPnl >= 0 ? '+' : ''}₹{position.unrealizedPnl.toFixed(2)}
                                     </p>
                                 </div>
@@ -541,38 +528,24 @@ export default function Dashboard() {
 
             {/* Quick Stats Summary */}
             {!isFirstTimeUser && runningStrategies.length > 0 && (
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl border border-blue-700 p-6 text-white shadow-sm">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div>
-                            <div className="flex items-center space-x-1 mb-1">
-                                <p className="text-blue-100 text-sm">Active Strategies</p>
-                                <span title="Number of strategies currently running" className="cursor-help"><Info className="h-3 w-3 text-blue-200" /></span>
+                <div className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 p-5 text-white">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        {[
+                            { label: 'Active Strategies', value: runningStrategies.length, tip: 'Strategies currently running' },
+                            { label: 'Total Trades', value: tradingContext.trades.length, tip: 'Cumulative executed trades' },
+                            { label: 'Open Positions', value: openPositions.length, tip: 'Positions not yet closed' },
+                            {
+                                label: "Today's Loss",
+                                value: `₹${tradingContext.riskState.dailyLoss.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+                                tip: 'Total realized loss today',
+                                accent: true
+                            },
+                        ].map(item => (
+                            <div key={item.label}>
+                                <p className="text-blue-100 text-xs mb-1">{item.label}</p>
+                                <p className={`text-2xl font-bold ${item.accent ? 'text-red-200' : ''}`}>{item.value}</p>
                             </div>
-                            <p className="text-3xl font-bold">{runningStrategies.length}</p>
-                        </div>
-                        <div>
-                            <div className="flex items-center space-x-1 mb-1">
-                                <p className="text-blue-100 text-sm">Total Trades</p>
-                                <span title="Cumulative count of all executed paper trades" className="cursor-help"><Info className="h-3 w-3 text-blue-200" /></span>
-                            </div>
-                            <p className="text-3xl font-bold">{tradingContext.trades.length}</p>
-                        </div>
-                        <div>
-                            <div className="flex items-center space-x-1 mb-1">
-                                <p className="text-blue-100 text-sm">Open Positions</p>
-                                <span title="Positions that have not yet been closed" className="cursor-help"><Info className="h-3 w-3 text-blue-200" /></span>
-                            </div>
-                            <p className="text-3xl font-bold">{openPositions.length}</p>
-                        </div>
-                        <div>
-                            <div className="flex items-center space-x-1 mb-1">
-                                <p className="text-blue-100 text-sm">Today's Loss</p>
-                                <span title="Total realised loss accumulated today" className="cursor-help"><Info className="h-3 w-3 text-blue-200" /></span>
-                            </div>
-                            <p className="text-3xl font-bold text-red-200">
-                                ₹{tradingContext.riskState.dailyLoss.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                        </div>
+                        ))}
                     </div>
                 </div>
             )}

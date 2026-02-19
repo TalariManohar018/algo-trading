@@ -27,11 +27,7 @@ class ApiClient {
         this.client.interceptors.response.use(
             (response) => response,
             (error: AxiosError) => {
-                if (error.response?.status === 401) {
-                    localStorage.removeItem('jwt_token');
-                    localStorage.removeItem('currentUser');
-                    window.location.href = '/login';
-                }
+                // No longer redirect to login on 401 — auth is bypassed
                 return Promise.reject(error);
             }
         );

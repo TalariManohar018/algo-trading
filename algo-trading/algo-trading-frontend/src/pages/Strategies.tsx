@@ -188,58 +188,51 @@ export default function Strategies() {
         return matchesSearch && matchesStatus && matchesInstrument;
     });
 
-    const getStatusColor = (status: Strategy['status']) => {
+    const statusBadgeClass = (status: Strategy['status']) => {
         switch (status) {
-            case 'RUNNING':
-                return 'bg-green-100 text-green-700';
-            case 'STOPPED':
-                return 'bg-gray-100 text-gray-700';
-            case 'ERROR':
-                return 'bg-red-100 text-red-700';
-            default:
-                return 'bg-blue-100 text-blue-700';
+            case 'RUNNING': return 'badge badge-green';
+            case 'STOPPED': return 'badge badge-gray';
+            case 'ERROR': return 'badge badge-red';
+            default: return 'badge badge-blue';
         }
     };
 
+    const runningCount = strategies.filter(s => s.status === 'RUNNING' || (s.status as any) === 'ACTIVE').length;
+
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            {/* Header */}
+            <div className="page-header">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Strategies</h1>
-                    <p className="text-gray-600 mt-1">
-                        Manage and monitor your trading strategies
-                        <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            {strategies.length} {strategies.length === 1 ? 'strategy' : 'strategies'}
-                        </span>
+                    <h1 className="page-title">Strategies</h1>
+                    <p className="page-sub">
+                        {strategies.length} {strategies.length === 1 ? 'strategy' : 'strategies'}
+                        {runningCount > 0 && <> · <span className="text-emerald-600 font-medium">{runningCount} running</span></>}
                     </p>
                 </div>
-
-                <button
-                    onClick={() => navigate('/builder')}
-                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                    <Plus className="h-5 w-5" />
-                    <span>New Strategy</span>
+                <button onClick={() => navigate('/builder')} className="btn-primary">
+                    <Plus className="h-4 w-4" />
+                    New Strategy
                 </button>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <div className="flex flex-col md:flex-row gap-4">
+            {/* Filters */}
+            <div className="card p-4">
+                <div className="flex flex-col md:flex-row gap-3">
                     <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                         <input
                             type="text"
-                            placeholder="Search strategies..."
+                            placeholder="Search by name or symbol…"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="input pl-9"
                         />
                     </div>
-
                     <select
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value as any)}
-                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="input w-auto"
                     >
                         <option value="All">All Status</option>
                         <option value="CREATED">Created</option>
@@ -247,11 +240,10 @@ export default function Strategies() {
                         <option value="STOPPED">Stopped</option>
                         <option value="ERROR">Error</option>
                     </select>
-
                     <select
                         value={filterInstrument}
-                        onChange={(e) => setFilterInstrument(e.target.value as 'All' | 'OPTION' | 'FUTURE')}
-                        className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        onChange={(e) => setFilterInstrument(e.target.value as any)}
+                        className="input w-auto"
                     >
                         <option value="All">All Instruments</option>
                         <option value="OPTION">Options</option>
@@ -261,78 +253,76 @@ export default function Strategies() {
             </div>
 
             {loading ? (
-                <div className="flex items-center justify-center h-64">
-                    <div className="text-gray-500">Loading strategies...</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="card p-5 space-y-3">
+                            <div className="skeleton h-4 w-3/5" />
+                            <div className="skeleton h-3 w-2/5" />
+                            <div className="skeleton h-3 w-full mt-4" />
+                            <div className="skeleton h-8 w-full mt-2" />
+                        </div>
+                    ))}
+                </div>
+            ) : filteredStrategies.length === 0 ? (
+                <div className="card">
+                    <div className="empty-state">
+                        <Activity className="empty-icon" />
+                        <p className="empty-title">
+                            {strategies.length === 0 ? 'No strategies yet' : 'No strategies match your filters'}
+                        </p>
+                        <p className="empty-sub mb-4">
+                            {strategies.length === 0
+                                ? 'Build your first automated trading strategy'
+                                : 'Try clearing filters'}
+                        </p>
+                        {strategies.length === 0 && (
+                            <button onClick={() => navigate('/builder')} className="btn-primary btn-sm">
+                                <Plus className="h-3.5 w-3.5" /> Create Strategy
+                            </button>
+                        )}
+                    </div>
                 </div>
             ) : (
-                <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredStrategies.map((strategy) => (
-                            <div
-                                key={strategy.id}
-                                className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow"
-                            >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900">{strategy.name}</h3>
-                                        <p className="text-sm text-gray-500 mt-1">{strategy.symbol} • {strategy.instrumentType}</p>
-                                    </div>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(strategy.status)}`}>
-                                        {strategy.status}
-                                    </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredStrategies.map((strategy) => (
+                        <div
+                            key={strategy.id}
+                            className="card p-5 hover:shadow-md transition-shadow flex flex-col"
+                        >
+                            <div className="flex items-start justify-between mb-3">
+                                <div className="min-w-0">
+                                    <h3 className="font-semibold text-gray-900 text-sm truncate">{strategy.name}</h3>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        <span className="font-mono">{strategy.symbol}</span>
+                                        {strategy.symbol && ' · '}{strategy.instrumentType}
+                                        {' · '}{strategy.timeframe}
+                                    </p>
                                 </div>
-
-                                {strategy.description && (
-                                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">{strategy.description}</p>
-                                )}
-
-                                <div className="space-y-2 mb-4">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-600">Conditions</span>
-                                        <span className="font-semibold text-gray-900">{strategy.conditions.length}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-600">Updated</span>
-                                        <span className="text-gray-900">{new Date(strategy.updatedAt).toLocaleDateString()}</span>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => setSelectedStrategy(strategy)}
-                                    className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-                                >
-                                    <Eye className="h-4 w-4" />
-                                    <span>View Details</span>
-                                </button>
+                                <span className={`${statusBadgeClass(strategy.status)} ml-2 shrink-0`}>
+                                    {strategy.status === 'RUNNING' && <span className="live-dot mr-1" />}
+                                    {strategy.status}
+                                </span>
                             </div>
-                        ))}
-                    </div>
 
-                    {filteredStrategies.length === 0 && !loading && (
-                        <div className="text-center py-16">
-                            <div className="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                                <Activity className="h-12 w-12 text-gray-400" />
-                            </div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                {strategies.length === 0 ? 'No strategies yet' : 'No strategies found'}
-                            </h3>
-                            <p className="text-gray-500 mb-6">
-                                {strategies.length === 0
-                                    ? 'Create your first strategy to get started with automated trading'
-                                    : 'Try adjusting your filters to see more results'}
-                            </p>
-                            {strategies.length === 0 && (
-                                <button
-                                    onClick={() => navigate('/builder')}
-                                    className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                >
-                                    <Plus className="h-5 w-5" />
-                                    <span>Create Your First Strategy</span>
-                                </button>
+                            {strategy.description && (
+                                <p className="text-xs text-gray-500 mb-3 line-clamp-2">{strategy.description}</p>
                             )}
+
+                            <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-50 pt-3 mt-auto mb-3">
+                                <span>{strategy.conditions.length} condition{strategy.conditions.length !== 1 ? 's' : ''}</span>
+                                <span>{new Date(strategy.updatedAt).toLocaleDateString('en-IN')}</span>
+                            </div>
+
+                            <button
+                                onClick={() => setSelectedStrategy(strategy)}
+                                className="btn-secondary w-full justify-center btn-sm"
+                            >
+                                <Eye className="h-3.5 w-3.5" />
+                                View Details
+                            </button>
                         </div>
-                    )}
-                </>
+                    ))}
+                </div>
             )}
 
             {selectedStrategy && (

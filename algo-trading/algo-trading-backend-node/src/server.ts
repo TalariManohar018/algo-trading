@@ -26,7 +26,27 @@ async function main() {
         process.exit(1);
     }
 
-    // 2. Create HTTP server
+    // 2. Seed default dev user (auth bypass)
+    try {
+        await prisma.user.upsert({
+            where: { id: 'dev-user-001' },
+            update: {},
+            create: {
+                id: 'dev-user-001',
+                email: 'dev@algotrading.local',
+                passwordHash: 'dev-no-password',
+                fullName: 'Dev User',
+                role: 'ADMIN',
+                wallet: { create: { balance: 100000, availableMargin: 100000 } },
+                riskState: { create: {} },
+            },
+        });
+        logger.info('Dev user seeded');
+    } catch (err) {
+        logger.warn('Dev user seed skipped (may already exist)', err);
+    }
+
+    // 3. Create HTTP server
     const server = http.createServer(app);
 
     // 3. Attach WebSocket server

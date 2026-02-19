@@ -22,29 +22,33 @@ declare global {
     }
 }
 
+// Default dev user — used when no JWT token is provided
+const DEV_USER: JwtPayload = {
+    userId: 'dev-user-001',
+    email: 'dev@algotrading.local',
+    role: 'ADMIN',
+};
+
 /**
- * Require valid JWT token. Attaches user info to req.user
+ * Auth middleware — verifies JWT if present, otherwise assigns a default dev user.
+ * This removes the login requirement so all pages work without authentication.
  */
 export function authenticate(req: Request, _res: Response, next: NextFunction): void {
     try {
         const authHeader = req.headers.authorization;
-        if (!authHeader?.startsWith('Bearer ')) {
-            throw new AuthenticationError('No token provided');
-        }
-
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
-
-        req.user = decoded;
-        next();
-    } catch (error) {
-        if (error instanceof jwt.TokenExpiredError) {
-            next(new AuthenticationError('Token expired'));
-        } else if (error instanceof jwt.JsonWebTokenError) {
-            next(new AuthenticationError('Invalid token'));
+        if (authHeader?.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
+            req.user = decoded;
         } else {
-            next(error);
+            // No token — use default dev user
+            req.user = DEV_USER;
         }
+        next();
+    } catch {
+        // Invalid/expired token — fall back to dev user
+        req.user = DEV_USER;
+        next();
     }
 }
 
