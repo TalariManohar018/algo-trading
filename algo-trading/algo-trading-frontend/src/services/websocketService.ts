@@ -1,141 +1,202 @@
-// Mock WebSocket Service
-// This simulates real-time data updates that would come from a WebSocket connection
-
-import { tradeService } from './tradeService';
+// ============================================================
+// REAL WEBSOCKET SERVICE — Connects to Node.js backend WS
+// ============================================================
+// Connects to ws://localhost:3001/ws with reconnection and
+// fallback to simulated data when backend is unreachable.
+// ============================================================
 
 export type WebSocketEventType =
     | 'market_update'
     | 'position_update'
     | 'strategy_status'
-    | 'trade_execution';
+    | 'trade_execution'
+    | 'tick'
+    | 'signal'
+    | 'order_placed'
+    | 'order_error'
+    | 'engine_started'
+    | 'engine_stopped'
+    | 'emergency_stop'
+    | 'engine_status';
 
 export interface WebSocketMessage {
-    type: WebSocketEventType;
+    type: string;
     data: any;
     timestamp: string;
 }
 
 type MessageCallback = (message: WebSocketMessage) => void;
 
-class WebSocketMockService {
-    private subscribers: Map<WebSocketEventType, Set<MessageCallback>> = new Map();
-    private intervals: ReturnType<typeof setInterval>[] = [];
-    private isConnected = false;
+const WS_URL = 'ws://localhost:3001/ws';
+
+class WebSocketService {
+    private ws: WebSocket | null = null;
+    private subscribers: Map<string, Set<MessageCallback>> = new Map();
+    private reconnectAttempts = 0;
+    private maxReconnectAttempts = 20;
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    private simulationIntervals: ReturnType<typeof setInterval>[] = [];
+    private isConnectedFlag = false;
+    private useSimulation = false;
 
     connect(): void {
-        if (this.isConnected) return;
+        if (this.isConnectedFlag || this.ws) return;
 
-        this.isConnected = true;
-        console.log('WebSocket Mock: Connected');
+        try {
+            this.ws = new WebSocket(WS_URL);
 
-        // Start simulating real-time updates
-        this.startMarketUpdates();
-        this.startPositionUpdates();
+            this.ws.onopen = () => {
+                console.log('WebSocket: Connected to backend');
+                this.isConnectedFlag = true;
+                this.reconnectAttempts = 0;
+                this.useSimulation = false;
+                this.stopSimulation();
+
+                this.ws?.send(JSON.stringify({
+                    type: 'subscribe',
+                    channels: ['ticks', 'signals', 'orders', 'engine'],
+                }));
+            };
+
+            this.ws.onmessage = (event: MessageEvent) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    this.handleBackendMessage(msg);
+                } catch { /* ignore */ }
+            };
+
+            this.ws.onclose = () => {
+                console.log('WebSocket: Disconnected');
+                this.isConnectedFlag = false;
+                this.ws = null;
+                this.scheduleReconnect();
+            };
+
+            this.ws.onerror = () => {
+                this.isConnectedFlag = false;
+            };
+        } catch {
+            console.log('WebSocket: Connection failed, starting simulation');
+            this.startSimulation();
+        }
     }
 
     disconnect(): void {
-        if (!this.isConnected) return;
-
-        this.isConnected = false;
-        this.intervals.forEach(interval => clearInterval(interval));
-        this.intervals = [];
-        console.log('WebSocket Mock: Disconnected');
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+        this.isConnectedFlag = false;
+        this.stopSimulation();
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
     }
 
-    subscribe(eventType: WebSocketEventType, callback: MessageCallback): () => void {
+    subscribe(eventType: string, callback: MessageCallback): () => void {
         if (!this.subscribers.has(eventType)) {
             this.subscribers.set(eventType, new Set());
         }
-
         this.subscribers.get(eventType)!.add(callback);
 
-        // Return unsubscribe function
         return () => {
             const callbacks = this.subscribers.get(eventType);
-            if (callbacks) {
-                callbacks.delete(callback);
-            }
+            if (callbacks) callbacks.delete(callback);
         };
     }
 
-    private emit(eventType: WebSocketEventType, data: any): void {
-        const message: WebSocketMessage = {
-            type: eventType,
-            data,
-            timestamp: new Date().toISOString()
-        };
+    get connected(): boolean {
+        return this.isConnectedFlag;
+    }
 
-        const callbacks = this.subscribers.get(eventType);
-        if (callbacks) {
-            callbacks.forEach(callback => callback(message));
+    private handleBackendMessage(msg: any) {
+        const timestamp = new Date().toISOString();
+
+        switch (msg.type) {
+            case 'tick':
+                this.emit('tick', { ...msg, timestamp });
+                this.emit('market_update', { type: 'market_update', data: msg.data, timestamp });
+                break;
+            case 'signal':
+                this.emit('signal', { ...msg, timestamp });
+                this.emit('strategy_status', { type: 'strategy_status', data: msg.data, timestamp });
+                break;
+            case 'order_placed':
+            case 'order_error':
+                this.emit(msg.type, { ...msg, timestamp });
+                this.emit('trade_execution', { type: 'trade_execution', data: msg.data, timestamp });
+                break;
+            case 'engine_status':
+            case 'engine_started':
+            case 'engine_stopped':
+            case 'emergency_stop':
+                this.emit(msg.type, { ...msg, timestamp });
+                break;
+            case 'pong':
+                break;
+            default:
+                this.emit(msg.type, { ...msg, timestamp });
         }
     }
 
-    private startMarketUpdates(): void {
-        // Update market indices every 3 seconds
-        const marketInterval = setInterval(() => {
-            const indices = ['NIFTY', 'BANKNIFTY', 'SENSEX'];
-            const randomIndex = indices[Math.floor(Math.random() * indices.length)];
+    private emit(eventType: string, message: any) {
+        const callbacks = this.subscribers.get(eventType);
+        if (callbacks) callbacks.forEach((cb) => cb(message));
+    }
 
-            // Simulate small price changes
+    private scheduleReconnect() {
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.log('WebSocket: Max reconnect attempts, using simulation');
+            this.startSimulation();
+            return;
+        }
+
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 15000);
+        this.reconnectAttempts++;
+        this.reconnectTimer = setTimeout(() => this.connect(), delay);
+    }
+
+    private startSimulation() {
+        if (this.useSimulation) return;
+        this.useSimulation = true;
+
+        const marketInterval = setInterval(() => {
+            const symbols = ['NIFTY', 'BANKNIFTY', 'RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
+            const symbol = symbols[Math.floor(Math.random() * symbols.length)];
             const priceChange = (Math.random() - 0.5) * 50;
 
             this.emit('market_update', {
-                symbol: randomIndex,
-                priceChange,
-                timestamp: new Date().toISOString()
+                type: 'market_update',
+                data: { symbol, priceChange, timestamp: new Date().toISOString() },
+                timestamp: new Date().toISOString(),
             });
         }, 3000);
 
-        this.intervals.push(marketInterval);
+        this.simulationIntervals.push(marketInterval);
     }
 
-    private startPositionUpdates(): void {
-        // Update positions every 5 seconds
-        const positionInterval = setInterval(() => {
-            // Simulate position price updates
-            const positions = [1, 2]; // Mock position IDs
-            const randomPositionId = positions[Math.floor(Math.random() * positions.length)];
-
-            // Simulate price movement
-            const basePrices: Record<number, number> = {
-                1: 165.25,
-                2: 215.00
-            };
-
-            const basePrice = basePrices[randomPositionId] || 150;
-            const priceChange = (Math.random() - 0.5) * 0.03; // ±3%
-            const newPrice = basePrice * (1 + priceChange);
-
-            // Update the position in trade service
-            tradeService.updatePositionPrice(randomPositionId, newPrice);
-
-            this.emit('position_update', {
-                positionId: randomPositionId,
-                newPrice,
-                timestamp: new Date().toISOString()
-            });
-        }, 5000);
-
-        this.intervals.push(positionInterval);
+    private stopSimulation() {
+        this.simulationIntervals.forEach((i) => clearInterval(i));
+        this.simulationIntervals = [];
+        this.useSimulation = false;
     }
 
-    // Simulate strategy status changes
     simulateStrategyStatusChange(strategyId: number, status: string): void {
         this.emit('strategy_status', {
-            strategyId,
-            status,
-            timestamp: new Date().toISOString()
+            type: 'strategy_status',
+            data: { strategyId, status },
+            timestamp: new Date().toISOString(),
         });
     }
 
-    // Simulate trade execution
     simulateTradeExecution(tradeData: any): void {
         this.emit('trade_execution', {
-            ...tradeData,
-            timestamp: new Date().toISOString()
+            type: 'trade_execution',
+            data: tradeData,
+            timestamp: new Date().toISOString(),
         });
     }
 }
 
-export const websocketService = new WebSocketMockService();
+export const websocketService = new WebSocketService();

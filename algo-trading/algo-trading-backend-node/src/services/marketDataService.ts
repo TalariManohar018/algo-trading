@@ -294,7 +294,7 @@ export class MarketDataService extends EventEmitter {
                 high: builder.high,
                 low: builder.low,
                 close: builder.close,
-                volume: BigInt(Math.floor(builder.volume)),
+                volume: Math.floor(builder.volume),
                 timestamp: builder.startTime,
             };
 
@@ -309,7 +309,7 @@ export class MarketDataService extends EventEmitter {
                         high: builder.high,
                         low: builder.low,
                         close: builder.close,
-                        volume: BigInt(Math.floor(builder.volume)),
+                        volume: Math.floor(builder.volume),
                     },
                 });
             } catch (error: any) {

@@ -8,6 +8,8 @@ import backtestRoutes from './backtestRoutes';
 import walletRoutes from './walletRoutes';
 import riskRoutes from './riskRoutes';
 import dashboardRoutes from './dashboardRoutes';
+import brokerAuthRoutes from './brokerAuthRoutes';
+import engineRoutes from './engineRoutes';
 
 const router = Router();
 
@@ -20,5 +22,7 @@ router.use('/backtests', backtestRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/risk', riskRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/broker', brokerAuthRoutes);
+router.use('/engine', engineRoutes);
 
 export default router;

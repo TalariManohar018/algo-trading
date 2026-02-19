@@ -10,6 +10,8 @@ import { env } from './config/env';
 import prisma from './config/database';
 import { logger } from './utils/logger';
 import { marketDataService } from './services/marketDataService';
+import { executionEngine } from './engine/executionEngine';
+import { tradingWS } from './websocket/wsServer';
 import http from 'http';
 
 const PORT = env.PORT;
@@ -27,7 +29,11 @@ async function main() {
     // 2. Create HTTP server
     const server = http.createServer(app);
 
-    // 3. Start market data service
+    // 3. Attach WebSocket server
+    tradingWS.attach(server);
+    logger.info('WebSocket server attached');
+
+    // 4. Start market data service
     try {
         marketDataService.start(['NIFTY', 'BANKNIFTY', 'RELIANCE', 'TCS', 'INFY', 'HDFCBANK']);
         logger.info(`Market data service started (mode: ${env.TRADING_MODE})`);
@@ -35,20 +41,32 @@ async function main() {
         logger.warn('Market data service failed to start (non-fatal)', err);
     }
 
-    // 4. Start listening
+    // 5. Start execution engine (auto-loads RUNNING strategies)
+    try {
+        await executionEngine.start();
+        logger.info('Execution engine started');
+    } catch (err) {
+        logger.warn('Execution engine failed to start (non-fatal)', err);
+    }
+
+    // 6. Start listening
     server.listen(PORT, () => {
         logger.info(`
-╔══════════════════════════════════════════════╗
-║      Algo Trading Backend v1.0.0             ║
-║      Port: ${String(PORT).padEnd(33)}║
-║      Mode: ${env.TRADING_MODE.padEnd(33)}║
-║      Node: ${process.version.padEnd(33)}║
-╚══════════════════════════════════════════════╝`);
+╔══════════════════════════════════════════════════╗
+║      Algo Trading Backend v1.0.0                 ║
+║      Port: ${String(PORT).padEnd(37)}║
+║      Mode: ${env.TRADING_MODE.padEnd(37)}║
+║      Node: ${process.version.padEnd(37)}║
+║      WS:   ws://localhost:${String(PORT).padEnd(24)}║
+╚══════════════════════════════════════════════════╝`);
     });
 
-    // 5. Graceful shutdown
+    // 7. Graceful shutdown
     const shutdown = async (signal: string) => {
         logger.info(`${signal} received — shutting down gracefully`);
+
+        await executionEngine.stop();
+        logger.info('Execution engine stopped');
 
         marketDataService.stop();
         logger.info('Market data service stopped');

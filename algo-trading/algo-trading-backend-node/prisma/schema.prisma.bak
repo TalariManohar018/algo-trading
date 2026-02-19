@@ -1,9 +1,12 @@
 // ============================================================
-// PRISMA SCHEMA — ALGO TRADING PLATFORM (SQLite)
+// PRISMA SCHEMA — ALGO TRADING PLATFORM
 // ============================================================
-// SQLite version: enums → String, Json → String (parsed in app)
-// All monetary values stored as Float
-// Timestamps use DateTime with @default(now())
+// Design decisions:
+// - All monetary values stored as Float (Decimal in production with @db.Decimal(18,4))
+// - Timestamps use DateTime with @default(now())
+// - Soft deletes via isActive flags where needed
+// - Indexes on frequently queried fields (userId, symbol, status, timestamps)
+// - Composite indexes for time-series queries
 // ============================================================
 
 generator client {
@@ -17,16 +20,22 @@ datasource db {
 
 // ─── USER & AUTH ────────────────────────────────────────────
 
+enum Role {
+  USER
+  ADMIN
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
   passwordHash  String
   fullName      String
-  role          String   @default("USER") // USER | ADMIN
+  role          Role     @default(USER)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Relations
   wallet        Wallet?
   apiKeys       BrokerApiKey[]
   strategies    Strategy[]
@@ -41,18 +50,16 @@ model User {
 }
 
 model BrokerApiKey {
-  id                 String    @id @default(uuid())
-  userId             String
-  broker             String    @default("angelone") // angelone, zerodha
-  apiKeyEncrypted    String
+  id              String   @id @default(uuid())
+  userId          String
+  broker          String   @default("zerodha") // zerodha, angelone, etc.
+  apiKeyEncrypted String   // AES-256 encrypted
   apiSecretEncrypted String
-  accessToken        String?
-  refreshToken       String?
-  feedToken          String?
-  tokenExpiresAt     DateTime?
-  isActive           Boolean   @default(true)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  accessToken     String?  // Session token (refreshed daily)
+  tokenExpiresAt  DateTime?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -63,7 +70,7 @@ model BrokerApiKey {
 model Wallet {
   id              String   @id @default(uuid())
   userId          String   @unique
-  balance         Float    @default(100000)
+  balance         Float    @default(100000) // ₹1,00,000 paper trading default
   usedMargin      Float    @default(0)
   availableMargin Float    @default(100000)
   realizedPnl     Float    @default(0)
@@ -75,34 +82,57 @@ model Wallet {
 
 // ─── STRATEGY ───────────────────────────────────────────────
 
-model Strategy {
-  id                String   @id @default(uuid())
-  userId            String
-  name              String
-  description       String?
-  symbol            String
-  symbolToken       String?  // Angel One symbol token
-  exchange          String   @default("NSE")
-  timeframe         String   @default("FIVE_MINUTES")
-  strategyType      String   // MA_CROSSOVER, RSI, CUSTOM
-  status            String   @default("CREATED") // CREATED, RUNNING, STOPPED, ERROR
-  parameters        String   @default("{}") // JSON string
-  quantity          Int      @default(1)
-  maxLossPerTrade   Float?
-  stopLossPercent   Float?
-  takeProfitPercent Float?
-  maxTradesPerDay   Int      @default(5)
-  tradingStartTime  String?  // "09:15"
-  tradingEndTime    String?  // "15:15"
-  squareOffTime     String?  // "15:20"
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+enum StrategyStatus {
+  CREATED
+  RUNNING
+  STOPPED
+  ERROR
+}
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orders    Order[]
+enum TimeFrame {
+  ONE_MINUTE
+  FIVE_MINUTES
+  FIFTEEN_MINUTES
+  THIRTY_MINUTES
+  ONE_HOUR
+  ONE_DAY
+}
+
+model Strategy {
+  id              String         @id @default(uuid())
+  userId          String
+  name            String
+  description     String?
+  symbol          String         // e.g., "NIFTY", "RELIANCE"
+  exchange        String         @default("NSE")
+  timeframe       TimeFrame      @default(FIVE_MINUTES)
+  strategyType    String         // "MA_CROSSOVER", "RSI", "CUSTOM"
+  status          StrategyStatus @default(CREATED)
+
+  // Strategy parameters stored as JSON for flexibility
+  parameters      Json           // { fastPeriod: 9, slowPeriod: 21, ... }
+
+  // Risk per strategy
+  quantity        Int            @default(1)
+  maxLossPerTrade Float?
+  stopLossPercent Float?
+  takeProfitPercent Float?
+  maxTradesPerDay Int            @default(5)
+
+  // Trading window
+  tradingStartTime String?       // "09:15"
+  tradingEndTime   String?       // "15:15"
+  squareOffTime    String?       // "15:20"
+
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders   Order[]
   positions Position[]
-  trades    Trade[]
+  trades   Trade[]
   backtests Backtest[]
 
   @@index([userId])
@@ -112,27 +142,55 @@ model Strategy {
 
 // ─── ORDERS ─────────────────────────────────────────────────
 
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+  SL       // Stop-loss
+  SL_M     // Stop-loss market
+}
+
+enum OrderStatus {
+  CREATED
+  PENDING
+  PLACED
+  FILLED
+  PARTIALLY_FILLED
+  CANCELLED
+  REJECTED
+}
+
+enum ProductType {
+  MIS   // Intraday
+  NRML  // Carry forward
+  CNC   // Cash & carry
+}
+
 model Order {
-  id              String    @id @default(uuid())
+  id              String      @id @default(uuid())
   userId          String
   strategyId      String?
-  brokerOrderId   String?
+  brokerOrderId   String?     // ID from Zerodha/broker
   symbol          String
-  exchange        String    @default("NSE")
-  side            String    // BUY | SELL
+  exchange        String      @default("NSE")
+  side            OrderSide
   quantity        Int
-  orderType       String    @default("MARKET")
-  productType     String    @default("MIS")
+  orderType       OrderType   @default(MARKET)
+  productType     ProductType @default(MIS)
   limitPrice      Float?
-  triggerPrice    Float?
+  triggerPrice    Float?      // For SL orders
   filledPrice     Float?
   filledQuantity  Int?
-  status          String    @default("CREATED")
+  status          OrderStatus @default(CREATED)
   rejectedReason  String?
   placedAt        DateTime?
   filledAt        DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   strategy Strategy? @relation(fields: [strategyId], references: [id], onDelete: SetNull)
@@ -146,25 +204,35 @@ model Order {
 
 // ─── POSITIONS ──────────────────────────────────────────────
 
+enum PositionSide {
+  LONG
+  SHORT
+}
+
+enum PositionStatus {
+  OPEN
+  CLOSED
+}
+
 model Position {
-  id            String    @id @default(uuid())
-  userId        String
-  strategyId    String?
-  symbol        String
-  exchange      String    @default("NSE")
-  side          String    // LONG | SHORT
-  quantity      Int
-  entryPrice    Float
-  currentPrice  Float
-  exitPrice     Float?
-  unrealizedPnl Float     @default(0)
-  realizedPnl   Float     @default(0)
-  status        String    @default("OPEN")
-  entryOrderId  String?
-  exitOrderId   String?
-  openedAt      DateTime  @default(now())
-  closedAt      DateTime?
-  updatedAt     DateTime  @updatedAt
+  id              String         @id @default(uuid())
+  userId          String
+  strategyId      String?
+  symbol          String
+  exchange        String         @default("NSE")
+  side            PositionSide
+  quantity        Int
+  entryPrice      Float
+  currentPrice    Float
+  exitPrice       Float?
+  unrealizedPnl   Float          @default(0)
+  realizedPnl     Float          @default(0)
+  status          PositionStatus @default(OPEN)
+  entryOrderId    String?
+  exitOrderId     String?
+  openedAt        DateTime       @default(now())
+  closedAt        DateTime?
+  updatedAt       DateTime       @updatedAt
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   strategy Strategy? @relation(fields: [strategyId], references: [id], onDelete: SetNull)
@@ -178,21 +246,21 @@ model Position {
 // ─── TRADES (Closed P&L Records) ────────────────────────────
 
 model Trade {
-  id         String   @id @default(uuid())
-  userId     String
-  strategyId String?
-  symbol     String
-  exchange   String   @default("NSE")
-  side       String   // BUY | SELL
-  quantity   Int
-  entryPrice Float
-  exitPrice  Float
-  pnl        Float
-  pnlPercent Float
-  entryTime  DateTime
-  exitTime   DateTime
-  duration   Int
-  createdAt  DateTime @default(now())
+  id              String    @id @default(uuid())
+  userId          String
+  strategyId      String?
+  symbol          String
+  exchange        String    @default("NSE")
+  side            OrderSide
+  quantity        Int
+  entryPrice      Float
+  exitPrice       Float
+  pnl             Float
+  pnlPercent      Float
+  entryTime       DateTime
+  exitTime        DateTime
+  duration        Int       // seconds
+  createdAt       DateTime  @default(now())
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   strategy Strategy? @relation(fields: [strategyId], references: [id], onDelete: SetNull)
@@ -209,13 +277,13 @@ model Candle {
   id        String   @id @default(uuid())
   symbol    String
   exchange  String   @default("NSE")
-  timeframe String
+  timeframe TimeFrame
   timestamp DateTime
   open      Float
   high      Float
   low       Float
   close     Float
-  volume    Int      @default(0)
+  volume    BigInt
   createdAt DateTime @default(now())
 
   @@unique([symbol, timeframe, timestamp])
@@ -263,11 +331,12 @@ model Backtest {
   profitFactor    Float?
   avgWin          Float?
   avgLoss         Float?
-  equityCurve     String?  // JSON string
-  trades          String?  // JSON string
-  status          String   @default("running")
+  // Equity curve stored as JSON array of { timestamp, equity }
+  equityCurve     Json?
+  trades          Json?     // Array of individual backtest trades
+  status          String    @default("running") // running, completed, failed
   error           String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   strategy Strategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
@@ -278,14 +347,21 @@ model Backtest {
 
 // ─── AUDIT LOG ──────────────────────────────────────────────
 
+enum AuditSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
 model AuditLog {
-  id        String   @id @default(uuid())
+  id        String        @id @default(uuid())
   userId    String
-  event     String
-  severity  String   @default("INFO")
+  event     String        // "ORDER_PLACED", "RISK_BREACH", "ENGINE_START", etc.
+  severity  AuditSeverity @default(INFO)
   message   String
-  metadata  String?  // JSON string
-  createdAt DateTime @default(now())
+  metadata  Json?
+  createdAt DateTime      @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

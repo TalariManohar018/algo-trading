@@ -31,10 +31,16 @@ export const env = {
     // Encryption
     ENCRYPTION_KEY: required('ENCRYPTION_KEY'),
 
-    // Zerodha
+    // Zerodha (legacy)
     KITE_API_KEY: optional('KITE_API_KEY', ''),
     KITE_API_SECRET: optional('KITE_API_SECRET', ''),
     KITE_ACCESS_TOKEN: optional('KITE_ACCESS_TOKEN', ''),
+
+    // Angel One SmartAPI
+    ANGEL_API_KEY: optional('ANGEL_API_KEY', ''),
+    ANGEL_CLIENT_ID: optional('ANGEL_CLIENT_ID', ''),
+    ANGEL_MPIN: optional('ANGEL_MPIN', ''),
+    ANGEL_TOTP_SECRET: optional('ANGEL_TOTP_SECRET', ''),
 
     // Trading
     TRADING_MODE: optional('TRADING_MODE', 'paper') as 'paper' | 'live',

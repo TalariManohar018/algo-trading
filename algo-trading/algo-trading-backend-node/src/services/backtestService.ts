@@ -269,8 +269,8 @@ export class BacktestService {
                 profitFactor: metrics.profitFactor,
                 avgWin: metrics.averageWin,
                 avgLoss: metrics.averageLoss,
-                equityCurve: equityCurve.map(e => ({ d: e.date.toISOString(), e: e.equity })),
-                trades: trades.map(t => ({
+                equityCurve: JSON.stringify(equityCurve.map(e => ({ d: e.date.toISOString(), e: e.equity }))),
+                trades: JSON.stringify(trades.map(t => ({
                     entry: t.entryDate.toISOString(),
                     exit: t.exitDate.toISOString(),
                     side: t.side,
@@ -278,7 +278,7 @@ export class BacktestService {
                     xp: t.exitPrice,
                     qty: t.quantity,
                     pnl: t.pnl,
-                })),
+                }))),
                 status: 'completed',
             },
         });

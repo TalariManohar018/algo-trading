@@ -18,7 +18,7 @@ export interface MarketDataStatus {
 export const marketDataApi = {
     // Start market data simulator
     start: async (): Promise<MarketDataStatus> => {
-        const response = await fetch(`${API_BASE_URL}/api/market-data/start`, {
+        const response = await fetch(`${API_BASE_URL}/market-data/start`, {
             method: 'POST',
         });
         if (!response.ok) throw new Error('Failed to start market data');
@@ -27,7 +27,7 @@ export const marketDataApi = {
 
     // Stop market data simulator
     stop: async (): Promise<MarketDataStatus> => {
-        const response = await fetch(`${API_BASE_URL}/api/market-data/stop`, {
+        const response = await fetch(`${API_BASE_URL}/market-data/stop`, {
             method: 'POST',
         });
         if (!response.ok) throw new Error('Failed to stop market data');
@@ -36,14 +36,14 @@ export const marketDataApi = {
 
     // Get market data status
     getStatus: async (): Promise<MarketDataStatus> => {
-        const response = await fetch(`${API_BASE_URL}/api/market-data/status`);
+        const response = await fetch(`${API_BASE_URL}/market-data/status`);
         if (!response.ok) throw new Error('Failed to fetch market data status');
         return response.json();
     },
 
     // Get current price for a symbol
     getCurrentPrice: async (symbol: string): Promise<{ symbol: string; price: number }> => {
-        const response = await fetch(`${API_BASE_URL}/api/market-data/price/${symbol}`);
+        const response = await fetch(`${API_BASE_URL}/market-data/price/${symbol}`);
         if (!response.ok) throw new Error('Failed to fetch current price');
         return response.json();
     },
@@ -55,7 +55,7 @@ export const marketDataApi = {
         count: number = 100
     ): Promise<CandleData[]> => {
         const response = await fetch(
-            `${API_BASE_URL}/api/market-data/candles/${symbol}?timeframe=${timeframe}&count=${count}`
+            `${API_BASE_URL}/market-data/candles/${symbol}?timeframe=${timeframe}&count=${count}`
         );
         if (!response.ok) throw new Error('Failed to fetch historical candles');
         return response.json();

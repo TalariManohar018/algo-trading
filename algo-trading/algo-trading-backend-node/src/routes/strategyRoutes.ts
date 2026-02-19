@@ -53,7 +53,7 @@ router.post(
                 strategyType,
                 symbol: parsed.data.symbol,
                 timeframe: parsed.data.timeframe as any,
-                parameters: parsed.data.parameters,
+                parameters: JSON.stringify(parsed.data.parameters),
                 quantity: parsed.data.quantity,
                 status: 'STOPPED',
             },
