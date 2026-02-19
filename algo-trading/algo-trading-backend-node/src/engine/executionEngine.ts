@@ -43,6 +43,7 @@ interface RunningStrategy {
     todayTradeCount: number;
     lastSignal: Signal;
     lastEvaluation: Date | null;
+    debug: boolean;
 }
 
 export class ExecutionEngine extends EventEmitter {
@@ -181,7 +182,7 @@ export class ExecutionEngine extends EventEmitter {
                 config: {
                     symbol: s.symbol,
                     quantity: s.quantity,
-                    parameters: params,
+                    parameters: { ...params, _strategyName: s.name },
                     stopLossPercent: s.stopLossPercent ?? undefined,
                     takeProfitPercent: s.takeProfitPercent ?? undefined,
                     maxTradesPerDay: s.maxTradesPerDay,
@@ -189,6 +190,7 @@ export class ExecutionEngine extends EventEmitter {
                 todayTradeCount: 0,
                 lastSignal: Signal.HOLD,
                 lastEvaluation: null,
+                debug: params.debug === true,
             });
         }
 
@@ -214,7 +216,7 @@ export class ExecutionEngine extends EventEmitter {
             config: {
                 symbol: s.symbol,
                 quantity: s.quantity,
-                parameters: params,
+                parameters: { ...params, _strategyName: s.name },
                 stopLossPercent: s.stopLossPercent ?? undefined,
                 takeProfitPercent: s.takeProfitPercent ?? undefined,
                 maxTradesPerDay: s.maxTradesPerDay,
@@ -222,6 +224,7 @@ export class ExecutionEngine extends EventEmitter {
             todayTradeCount: 0,
             lastSignal: Signal.HOLD,
             lastEvaluation: null,
+            debug: params.debug === true,
         });
 
         // Ensure market data covers this symbol
@@ -336,10 +339,17 @@ export class ExecutionEngine extends EventEmitter {
         });
 
         // 6. Evaluate strategy
+        if (strategy.debug) {
+            logger.info(`🔧 [ENGINE] Evaluating strategy: ${strategy.name} (${strategy.strategyType}) | Symbol: ${symbol} | Candles: ${candles.length} | Open position: ${!!openPosition}`);
+        }
         const result: StrategyResult = impl.evaluate(candles, strategy.config, !!openPosition);
         this.totalSignals++;
         strategy.lastSignal = result.signal;
         strategy.lastEvaluation = new Date();
+
+        if (strategy.debug && result.signal !== Signal.HOLD) {
+            logger.info(`🔧 [ENGINE] Signal: ${result.signal} | Confidence: ${(result.confidence * 100).toFixed(1)}% | Reason: ${result.reason}`);
+        }
 
         // Emit for logging/UI
         this.emit('signal', {

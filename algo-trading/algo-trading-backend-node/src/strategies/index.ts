@@ -8,6 +8,7 @@
 import { IStrategy } from './base';
 import { MovingAverageCrossover } from './movingAverageCrossover';
 import { RSIStrategy } from './rsiStrategy';
+import { CustomStrategy } from './customStrategy';
 
 class StrategyRegistry {
     private strategies = new Map<string, IStrategy>();
@@ -15,6 +16,7 @@ class StrategyRegistry {
     constructor() {
         this.register(new MovingAverageCrossover());
         this.register(new RSIStrategy());
+        this.register(new CustomStrategy());
         // Register new strategies here:
         // this.register(new BollingerBandStrategy());
         // this.register(new MACDStrategy());

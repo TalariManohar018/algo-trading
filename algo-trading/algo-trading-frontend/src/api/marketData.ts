@@ -51,7 +51,7 @@ export const marketDataApi = {
     // Get historical candles
     getHistoricalCandles: async (
         symbol: string,
-        timeframe: string = '1m',
+        timeframe: string = 'ONE_MINUTE',
         count: number = 100
     ): Promise<CandleData[]> => {
         const response = await fetch(

@@ -7,6 +7,7 @@ import { useError } from '../context/ErrorContext';
 import { useLoading } from '../context/LoadingContext';
 import { useSettings } from '../context/SettingsContext';
 import { useTradingContext } from '../context/TradingContext';
+import { strategyApi } from '../api/strategies';
 
 export default function Strategies() {
     const navigate = useNavigate();
@@ -62,7 +63,7 @@ export default function Strategies() {
                     description: s.description || '',
                     symbol: s.symbol || '',
                     instrumentType: s.instrumentType || 'OPTION',
-                    timeframe: s.timeframe || '1m',
+                    timeframe: s.timeframe || 'ONE_MINUTE',
                     status: s.status || 'CREATED',
                     createdAt: s.createdAt || new Date(),
                     updatedAt: s.updatedAt || new Date(),
@@ -99,8 +100,17 @@ export default function Strategies() {
                 return;
             }
 
-            // Find in trading context using originalId or name
-            const originalId = (strategyData as any).originalId;
+            // Get the original backend ID (UUID string)
+            const originalId = (strategyData as any).originalId || strategyData.id;
+
+            // Call backend engine API to start strategy
+            try {
+                await strategyApi.activateStrategy(originalId);
+            } catch (backendErr) {
+                console.warn('Backend engine start failed (may be paper-only mode):', backendErr);
+            }
+
+            // Also update local trading context
             const strategy = tradingContext.strategies.find(s =>
                 s.id === originalId || s.name === strategyData.name
             );
@@ -108,11 +118,9 @@ export default function Strategies() {
             if (strategy) {
                 const updatedStrategy = { ...strategy, status: 'ACTIVE' as const };
                 tradingContext.updateStrategy(updatedStrategy);
-                showSuccess('Strategy started in paper trading mode');
-            } else {
-                showError('Strategy not found in trading context');
             }
 
+            showSuccess('Strategy started');
             await fetchStrategies();
             setGlobalLoading(false);
         } catch (error) {
@@ -133,8 +141,17 @@ export default function Strategies() {
                 return;
             }
 
-            // Find in trading context using originalId or name
-            const originalId = (strategyData as any).originalId;
+            // Get the original backend ID (UUID string)
+            const originalId = (strategyData as any).originalId || strategyData.id;
+
+            // Call backend engine API to stop strategy
+            try {
+                await strategyApi.deactivateStrategy(originalId);
+            } catch (backendErr) {
+                console.warn('Backend engine stop failed (may be paper-only mode):', backendErr);
+            }
+
+            // Also update local trading context
             const strategy = tradingContext.strategies.find(s =>
                 s.id === originalId || s.name === strategyData.name
             );
@@ -142,11 +159,9 @@ export default function Strategies() {
             if (strategy) {
                 const updatedStrategy = { ...strategy, status: 'STOPPED' as const };
                 tradingContext.updateStrategy(updatedStrategy);
-                showSuccess('Strategy stopped');
-            } else {
-                showError('Strategy not found in trading context');
             }
 
+            showSuccess('Strategy stopped');
             await fetchStrategies();
             setGlobalLoading(false);
         } catch (error) {

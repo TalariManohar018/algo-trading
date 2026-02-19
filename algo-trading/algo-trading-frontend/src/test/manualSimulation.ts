@@ -26,7 +26,7 @@ const testStrategy: ExecutableStrategy = {
     description: 'Simple price threshold strategy for testing',
     symbol: 'NIFTY50',
     instrumentType: 'INDEX',
-    timeframe: '1m',
+    timeframe: 'ONE_MINUTE',
     quantity: 100,
     orderType: 'MARKET',
     productType: 'INTRADAY',
@@ -134,7 +134,7 @@ setTimeout(() => {
     paperTradingEngine.stopEngine();
 
     const finalWallet = paperWalletService.getWallet();
-    
+
     console.log('\n📊 SIMULATION RESULTS:');
     console.log('====================');
     console.log(`Activity Events: ${activityCount}`);
@@ -147,11 +147,11 @@ setTimeout(() => {
     console.log(`  Realized P&L: ₹${finalWallet.realizedPnl.toFixed(2)}`);
     console.log(`  Unrealized P&L: ₹${finalWallet.unrealizedPnl.toFixed(2)}`);
     console.log(`  Total Equity: ₹${(finalWallet.balance + finalWallet.unrealizedPnl).toFixed(2)}`);
-    
+
     const pnl = finalWallet.realizedPnl + finalWallet.unrealizedPnl;
     const pnlPercent = ((pnl / 100000) * 100).toFixed(2);
     console.log(`\n${pnl >= 0 ? '✅' : '❌'} Net P&L: ₹${pnl.toFixed(2)} (${pnlPercent}%)`);
-    
+
     console.log('\n✅ Simulation complete!');
 }, 60000);
 

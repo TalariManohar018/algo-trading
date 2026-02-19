@@ -36,22 +36,38 @@ export const strategyApi = {
         return response.json();
     },
 
-    // Activate strategy
-    activateStrategy: async (id: number): Promise<ExecutableStrategy> => {
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}/activate`, {
-            method: 'PUT',
+    // Activate strategy — also starts it in the backend execution engine
+    activateStrategy: async (id: number | string): Promise<ExecutableStrategy> => {
+        // Start in execution engine (backend)
+        const engineRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ENGINE}/strategy/${id}/start`, {
+            method: 'POST',
         });
-        if (!response.ok) throw new Error('Failed to activate strategy');
-        return response.json();
+        if (!engineRes.ok) {
+            // Fallback: try the old activate endpoint
+            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}/activate`, {
+                method: 'PUT',
+            });
+            if (!response.ok) throw new Error('Failed to activate strategy');
+            return response.json();
+        }
+        return engineRes.json();
     },
 
-    // Deactivate strategy
-    deactivateStrategy: async (id: number): Promise<ExecutableStrategy> => {
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}/deactivate`, {
-            method: 'PUT',
+    // Deactivate strategy — also stops it in the backend execution engine
+    deactivateStrategy: async (id: number | string): Promise<ExecutableStrategy> => {
+        // Stop in execution engine (backend)
+        const engineRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ENGINE}/strategy/${id}/stop`, {
+            method: 'POST',
         });
-        if (!response.ok) throw new Error('Failed to deactivate strategy');
-        return response.json();
+        if (!engineRes.ok) {
+            // Fallback: try the old deactivate endpoint
+            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}/deactivate`, {
+                method: 'PUT',
+            });
+            if (!response.ok) throw new Error('Failed to deactivate strategy');
+            return response.json();
+        }
+        return engineRes.json();
     },
 
     // Update strategy status

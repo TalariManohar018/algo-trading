@@ -24,7 +24,7 @@ export default function StrategyBuilder() {
     const [instrumentType, setInstrumentType] = useState<'OPTION' | 'FUTURE'>('FUTURE');
 
     // Trading Parameters
-    const [timeframe, setTimeframe] = useState<TimeFrame>('5m');
+    const [timeframe, setTimeframe] = useState<TimeFrame>('FIVE_MINUTES');
     const [quantity, setQuantity] = useState<number>(1);
     const [orderType, setOrderType] = useState<OrderType>('MARKET');
     const [productType, setProductType] = useState<ProductType>('MIS');
@@ -290,12 +290,12 @@ export default function StrategyBuilder() {
                                 onChange={(e) => setTimeframe(e.target.value as TimeFrame)}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
-                                <option value="1m">1 Minute</option>
-                                <option value="5m">5 Minutes</option>
-                                <option value="15m">15 Minutes</option>
-                                <option value="30m">30 Minutes</option>
-                                <option value="1h">1 Hour</option>
-                                <option value="1d">1 Day</option>
+                                <option value="ONE_MINUTE">1 Minute</option>
+                                <option value="FIVE_MINUTES">5 Minutes</option>
+                                <option value="FIFTEEN_MINUTES">15 Minutes</option>
+                                <option value="THIRTY_MINUTES">30 Minutes</option>
+                                <option value="ONE_HOUR">1 Hour</option>
+                                <option value="ONE_DAY">1 Day</option>
                             </select>
                         </div>
 

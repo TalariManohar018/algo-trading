@@ -8,14 +8,41 @@ import { ValidationError, NotFoundError } from '../utils/errors';
 
 const router = Router();
 
+const conditionSchema = z.object({
+    id: z.string().optional(),
+    indicatorType: z.string(),
+    conditionType: z.string(),
+    value: z.number(),
+    logic: z.string().optional(),
+    period: z.number().optional(),
+});
+
 const createStrategySchema = z.object({
     name: z.string().min(1).max(100),
-    strategyType: z.string(),
+    description: z.string().optional().default(''),
     symbol: z.string().min(1),
+    instrumentType: z.string().optional().default('FUTURE'),
     timeframe: z.enum(['ONE_MINUTE', 'FIVE_MINUTES', 'FIFTEEN_MINUTES', 'THIRTY_MINUTES', 'ONE_HOUR', 'ONE_DAY']),
-    parameters: z.record(z.number()),
-    productType: z.enum(['CNC', 'MIS', 'NRML']).default('MIS'),
     quantity: z.number().int().positive(),
+    orderType: z.enum(['MARKET', 'LIMIT']).optional().default('MARKET'),
+    productType: z.enum(['CNC', 'MIS', 'NRML']).default('MIS'),
+    entryConditions: z.array(conditionSchema).optional().default([]),
+    exitConditions: z.array(conditionSchema).optional().default([]),
+    maxTradesPerDay: z.number().int().positive().optional().default(5),
+    tradingWindow: z.object({
+        startTime: z.string(),
+        endTime: z.string(),
+    }).optional(),
+    squareOffTime: z.string().optional(),
+    riskConfig: z.object({
+        maxLossPerTrade: z.number().optional(),
+        maxProfitTarget: z.number().optional(),
+        stopLossPercent: z.number().optional(),
+        takeProfitPercent: z.number().optional(),
+    }).optional(),
+    // Legacy fields (from old strategy registry flow)
+    strategyType: z.string().optional(),
+    parameters: z.record(z.number()).optional(),
 });
 
 // GET /api/strategies/available — list available strategy types
@@ -38,24 +65,46 @@ router.post(
             throw new ValidationError(parsed.error.errors.map(e => e.message).join(', '));
         }
 
-        const { strategyType } = parsed.data;
-        const impl = strategyRegistry.getOrThrow(strategyType);
-        try {
-            impl.validateParameters(parsed.data.parameters);
-        } catch (e: any) {
-            throw new ValidationError(e.message || 'Invalid parameters for this strategy');
+        const d = parsed.data;
+
+        // If legacy strategyType flow is used, validate parameters
+        if (d.strategyType && d.parameters) {
+            const impl = strategyRegistry.getOrThrow(d.strategyType);
+            try {
+                impl.validateParameters(d.parameters);
+            } catch (e: any) {
+                throw new ValidationError(e.message || 'Invalid parameters for this strategy');
+            }
         }
+
+        // Build a parameters JSON that stores all the rich data
+        const parametersJson = JSON.stringify({
+            ...(d.parameters || {}),
+            instrumentType: d.instrumentType,
+            orderType: d.orderType,
+            entryConditions: d.entryConditions,
+            exitConditions: d.exitConditions,
+            riskConfig: d.riskConfig,
+        });
 
         const strategy = await prisma.strategy.create({
             data: {
                 userId: req.user!.userId,
-                name: parsed.data.name,
-                strategyType,
-                symbol: parsed.data.symbol,
-                timeframe: parsed.data.timeframe as any,
-                parameters: JSON.stringify(parsed.data.parameters),
-                quantity: parsed.data.quantity,
-                status: 'STOPPED',
+                name: d.name,
+                description: d.description || '',
+                strategyType: d.strategyType || 'CUSTOM',
+                symbol: d.symbol,
+                timeframe: d.timeframe as any,
+                parameters: parametersJson,
+                quantity: d.quantity,
+                maxTradesPerDay: d.maxTradesPerDay || 5,
+                maxLossPerTrade: d.riskConfig?.maxLossPerTrade,
+                stopLossPercent: d.riskConfig?.stopLossPercent,
+                takeProfitPercent: d.riskConfig?.takeProfitPercent,
+                tradingStartTime: d.tradingWindow?.startTime,
+                tradingEndTime: d.tradingWindow?.endTime,
+                squareOffTime: d.squareOffTime,
+                status: 'CREATED',
             },
         });
 

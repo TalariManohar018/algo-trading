@@ -134,7 +134,7 @@ class MarketDataSimulator extends EventEmitter {
 
                 candles.push({
                     symbol,
-                    timeframe: '1m',
+                    timeframe: 'ONE_MINUTE',
                     timestamp: new Date(baseTime + i * 60000),
                     open: Math.round(open * 100) / 100,
                     high: Math.round(high * 100) / 100,
@@ -222,7 +222,7 @@ class MarketDataSimulator extends EventEmitter {
 
         return {
             symbol,
-            timeframe: '1m',
+            timeframe: 'ONE_MINUTE',
             timestamp,
             open: Math.round(open * 100) / 100,
             high: Math.round(high * 100) / 100,
@@ -270,7 +270,7 @@ class MarketDataSimulator extends EventEmitter {
     private normalizeCandle(raw: any): Candle {
         return {
             symbol: raw.symbol || 'UNKNOWN',
-            timeframe: raw.timeframe || '1m',
+            timeframe: raw.timeframe || 'ONE_MINUTE',
             timestamp: new Date(raw.timestamp),
             open: Number(raw.open),
             high: Number(raw.high),
