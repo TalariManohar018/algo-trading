@@ -6,6 +6,7 @@ export interface Strategy {
     description: string;
     symbol: string;
     instrumentType: 'OPTION' | 'FUTURE';
+    timeframe?: string;
     status: 'CREATED' | 'RUNNING' | 'STOPPED' | 'ERROR';
     createdAt: string;
     updatedAt: string;

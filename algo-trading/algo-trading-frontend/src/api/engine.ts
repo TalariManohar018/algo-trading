@@ -12,7 +12,7 @@ export interface EngineStatus {
 
 export const engineApi = {
     // Start engine
-    startEngine: async (userId: number = 1): Promise<any> => {
+    startEngine: async (_userId: number = 1): Promise<any> => {
         const token = () => localStorage.getItem('jwt_token');
         const headers: HeadersInit = token() ? { Authorization: `Bearer ${token()}` } : {};
         const response = await fetch(`${API_BASE_URL}/engine/start`, {
@@ -36,7 +36,7 @@ export const engineApi = {
     },
 
     // Emergency stop
-    emergencyStop: async (reason: string = 'Manual emergency stop'): Promise<any> => {
+    emergencyStop: async (_reason: string = 'Manual emergency stop'): Promise<any> => {
         const token = localStorage.getItem('jwt_token');
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
         const response = await fetch(`${API_BASE_URL}/engine/emergency-stop`, {
