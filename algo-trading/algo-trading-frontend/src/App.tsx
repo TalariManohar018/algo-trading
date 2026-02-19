@@ -15,6 +15,7 @@ import Trades from './pages/Trades';
 import Positions from './pages/Positions';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import BrokerConnect from './pages/BrokerConnect';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 
@@ -69,6 +70,7 @@ function AppRoutes() {
                 <Route path="/positions" element={<ProtectedLayout><Positions /></ProtectedLayout>} />
                 <Route path="/profile" element={<ProtectedLayout><Profile /></ProtectedLayout>} />
                 <Route path="/settings" element={<ProtectedLayout><Settings /></ProtectedLayout>} />
+                <Route path="/broker" element={<ProtectedLayout><BrokerConnect /></ProtectedLayout>} />
 
                 {/* Redirect root to dashboard */}
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />

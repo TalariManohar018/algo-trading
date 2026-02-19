@@ -17,18 +17,19 @@ const router = Router();
  */
 router.post('/login', authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { apiKey, clientId, mpin, totpSecret } = req.body;
+        const { apiKey, clientId, password, mpin, totpSecret } = req.body;
         const userId = req.user!.userId;
+        const brokerPassword = password || mpin;  // accept either field
 
-        if (!apiKey || !clientId || !mpin || !totpSecret) {
+        if (!apiKey || !clientId || !brokerPassword || !totpSecret) {
             return res.status(400).json({
                 success: false,
-                error: 'Missing required fields: apiKey, clientId, mpin, totpSecret',
+                error: 'Missing required fields: apiKey, clientId, password (or mpin), totpSecret',
             });
         }
 
         // Create Angel One broker instance and login
-        const broker = new AngelOneBrokerService({ apiKey, clientId, mpin, totpSecret });
+        const broker = new AngelOneBrokerService({ apiKey, clientId, password: brokerPassword, totpSecret });
         const tokens = await broker.login();
 
         // Store session in the global broker instance
@@ -121,6 +122,7 @@ router.get('/status', authenticate, async (req: Request, res: Response, next: Ne
     try {
         const userId = req.user!.userId;
         const broker = getBrokerInstance();
+        const isLive = broker instanceof AngelOneBrokerService;
 
         const storedKey = await prisma.brokerApiKey.findFirst({
             where: { userId, broker: 'angelone', isActive: true },
@@ -129,8 +131,9 @@ router.get('/status', authenticate, async (req: Request, res: Response, next: Ne
         res.json({
             success: true,
             data: {
-                broker: 'angelone',
-                connected: broker?.isConnected() || false,
+                broker: isLive ? 'angelone' : 'paper',
+                connected: isLive && broker.isConnected(),
+                clientId: isLive ? (broker as AngelOneBrokerService).getTokens() ? 'Connected' : '' : '',
                 tradingMode: env.TRADING_MODE,
                 hasStoredCredentials: !!storedKey,
                 tokenExpiry: storedKey?.tokenExpiresAt,
@@ -167,6 +170,47 @@ router.post('/refresh', authenticate, async (req: Request, res: Response, next: 
         }
 
         res.json({ success: true, message: 'Session refreshed' });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/broker/emergency-stop — Block all new orders immediately
+ */
+router.post('/emergency-stop', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const broker = getBrokerInstance();
+
+        if (broker instanceof AngelOneBrokerService) {
+            broker.setEmergencyStop(true);
+            // Optionally also cancel all pending orders & square off
+            if (req.body.squareOff) {
+                await broker.cancelAllOrders();
+                await broker.squareOffAll();
+            }
+            res.json({ success: true, message: 'Emergency stop activated. All new orders blocked.' });
+        } else {
+            res.status(400).json({ success: false, error: 'Emergency stop only applies to live broker' });
+        }
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * POST /api/broker/resume — Resume order placement after emergency stop
+ */
+router.post('/resume', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const broker = getBrokerInstance();
+
+        if (broker instanceof AngelOneBrokerService) {
+            broker.setEmergencyStop(false);
+            res.json({ success: true, message: 'Trading resumed. Orders allowed.' });
+        } else {
+            res.status(400).json({ success: false, error: 'Resume only applies to live broker' });
+        }
     } catch (error) {
         next(error);
     }

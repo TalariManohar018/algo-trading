@@ -11,6 +11,7 @@ import prisma from './config/database';
 import { logger } from './utils/logger';
 import { marketDataService } from './services/marketDataService';
 import { executionEngine } from './engine/executionEngine';
+import { autoConnectBroker } from './engine/brokerFactory';
 import { tradingWS } from './websocket/wsServer';
 import http from 'http';
 
@@ -53,7 +54,14 @@ async function main() {
     tradingWS.attach(server);
     logger.info('WebSocket server attached');
 
-    // 4. Start market data service
+    // 4. Auto-connect broker if TRADING_MODE=live
+    try {
+        await autoConnectBroker();
+    } catch (err) {
+        logger.warn('Broker auto-connect failed (non-fatal)', err);
+    }
+
+    // 5. Start market data service
     try {
         marketDataService.start(['NIFTY', 'BANKNIFTY', 'RELIANCE', 'TCS', 'INFY', 'HDFCBANK']);
         logger.info(`Market data service started (mode: ${env.TRADING_MODE})`);

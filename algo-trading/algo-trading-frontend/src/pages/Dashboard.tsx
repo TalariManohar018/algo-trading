@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Play, Square, AlertCircle, Info } from 'lucide-react';
 import { Strategy } from '../services/strategyService';
 import { tradingEngine } from '../services/tradingEngine';
@@ -161,7 +162,7 @@ export default function Dashboard() {
         }
 
         if (tradingContext.tradingMode === 'LIVE') {
-            showError('Live Trading mode is active but broker is not connected. Switch to Paper Trading in Settings to execute trades.');
+            showError('Live Trading mode is active but broker is not connected. Go to Broker Connect page to link your Angel One account.');
             console.warn('[Dashboard] Engine start blocked — LIVE mode, broker not connected');
             return;
         }
@@ -424,7 +425,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-3 bg-red-50 border border-red-300 rounded-xl px-4 py-3">
                     <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
                     <span className="text-sm font-semibold text-red-800">
-                        Live Trading Mode active — Broker not connected. All order execution is blocked.
+                        Live Trading Mode active — Broker not connected. <a href="/broker" className="underline">Connect Angel One</a>
                     </span>
                 </div>
             )}
@@ -446,7 +447,7 @@ export default function Dashboard() {
                     <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
                     <div>
                         <p className="text-sm font-semibold text-red-900">Live Trading Disabled</p>
-                        <p className="text-xs text-red-700 mt-0.5">Broker not connected. Configure credentials in Settings.</p>
+                        <p className="text-xs text-red-700 mt-0.5">Broker not connected. <a href="/broker" className="underline font-semibold">Connect Angel One</a> to enable live trading.</p>
                     </div>
                 </div>
             )}

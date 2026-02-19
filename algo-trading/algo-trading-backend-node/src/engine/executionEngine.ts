@@ -18,6 +18,7 @@ import logger from '../utils/logger';
 import { marketDataService, TickData } from '../services/marketDataService';
 import { OrderExecutor } from './orderExecutor';
 import { getBrokerInstance } from './brokerFactory';
+import { riskManagementService } from '../services/riskService';
 import { strategyRegistry } from '../strategies';
 import { Signal, StrategyConfig, StrategyResult } from '../strategies/base';
 import { CandleInput } from '../strategies/indicators';
@@ -375,13 +376,32 @@ export class ExecutionEngine extends EventEmitter {
             if (result.signal === Signal.SELL && openPosition.side === 'SHORT') return;
         }
 
-        // 8. Risk check
+        // 8. Risk check — both lock check and pre-order validation
         const riskState = await prisma.riskState.findUnique({
             where: { userId: strategy.userId },
         });
         if (riskState?.isLocked) {
             logger.warn(`Risk locked for user ${strategy.userId}: ${riskState.lockReason}`);
             return;
+        }
+
+        // Pre-order risk check (validates daily loss, max trade size, open positions)
+        try {
+            const lastCandle = candles[candles.length - 1];
+            const estimatedValue = (strategy.config.quantity || 1) * (lastCandle?.close || 0);
+            const riskCheck = await riskManagementService.checkPreOrder(strategy.userId, estimatedValue);
+            if (!riskCheck.allowed) {
+                logger.warn(`Risk check BLOCKED order: ${riskCheck.reason}`, {
+                    userId: strategy.userId,
+                    strategy: strategy.name,
+                    symbol,
+                    estimatedValue,
+                });
+                return;
+            }
+        } catch (riskErr: any) {
+            logger.error(`Risk check error (allowing order): ${riskErr.message}`);
+            // Don't block on risk service errors — log and continue
         }
 
         // 9. Place order

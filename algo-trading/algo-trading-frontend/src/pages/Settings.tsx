@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { User, Zap, Shield, Bell, Wallet, AlertTriangle, Clock, Calendar, HelpCircle, CheckCircle } from 'lucide-react';
@@ -8,6 +9,7 @@ export default function Settings() {
     const { user } = useAuth();
     const { settings, updateSettings, resetWallet } = useSettings();
     const { showSuccess, showError } = useError();
+    const navigate = useNavigate();
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [showLiveConfirm, setShowLiveConfirm] = useState(false);
 
@@ -58,8 +60,8 @@ export default function Settings() {
                             <div
                                 onClick={handleSetPaperMode}
                                 className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${settings.tradingMode === 'PAPER'
-                                        ? 'border-blue-600 bg-blue-50'
-                                        : 'border-gray-200 hover:border-blue-300 bg-white'
+                                    ? 'border-blue-600 bg-blue-50'
+                                    : 'border-gray-200 hover:border-blue-300 bg-white'
                                     }`}
                             >
                                 <div className="flex items-start justify-between">
@@ -90,8 +92,8 @@ export default function Settings() {
                             <div
                                 onClick={() => setShowLiveConfirm(true)}
                                 className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${settings.tradingMode === 'LIVE'
-                                        ? 'border-red-500 bg-red-50'
-                                        : 'border-gray-200 hover:border-red-300 bg-white'
+                                    ? 'border-red-500 bg-red-50'
+                                    : 'border-gray-200 hover:border-red-300 bg-white'
                                     }`}
                             >
                                 <div className="flex items-start justify-between">
@@ -134,21 +136,27 @@ export default function Settings() {
                                         <div>
                                             <p className="text-sm font-semibold text-red-900">Switch to Live Trading?</p>
                                             <p className="text-xs text-red-700 mt-1">
-                                                Live mode is selected but broker is not connected. Trade execution will be blocked.
-                                                Configure Angel One credentials in <strong>.env</strong> to enable real trading.
+                                                To enable live trading, connect your Angel One account first from the
+                                                <strong> Broker Connect</strong> page.
                                             </p>
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={handleSetLiveMode}
-                                            className="btn btn-danger btn-sm"
+                                            onClick={() => { setShowLiveConfirm(false); navigate('/broker'); }}
+                                            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
                                         >
-                                            Set Live Mode (No Execution)
+                                            Go to Broker Connect
+                                        </button>
+                                        <button
+                                            onClick={handleSetLiveMode}
+                                            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                                        >
+                                            Set Live Mode Anyway
                                         </button>
                                         <button
                                             onClick={() => setShowLiveConfirm(false)}
-                                            className="btn btn-secondary btn-sm"
+                                            className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-600"
                                         >
                                             Cancel
                                         </button>

@@ -1,14 +1,30 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Link2 } from 'lucide-react';
 import ProfileMenu from './ProfileMenu';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { useState, useEffect } from 'react';
+import { getBrokerStatus } from '../api/broker';
 
 export default function Navbar() {
     const { isAuthenticated } = useAuth();
     const { settings } = useSettings();
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Broker status polling
+    const [brokerConnected, setBrokerConnected] = useState(false);
+    useEffect(() => {
+        const check = async () => {
+            try {
+                const s = await getBrokerStatus();
+                setBrokerConnected(s.connected === true);
+            } catch { setBrokerConnected(false); }
+        };
+        check();
+        const iv = setInterval(check, 20000);
+        return () => clearInterval(iv);
+    }, []);
 
     // Hide navbar on login/signup pages
     const isAuthPage = location.pathname === '/login' || location.pathname === '/signup';
@@ -32,6 +48,21 @@ export default function Navbar() {
                                 }`}>
                                 {settings.tradingMode === 'PAPER' ? 'PAPER' : 'LIVE'}
                             </span>
+                        )}
+
+                        {/* Broker Status */}
+                        {isAuthenticated && (
+                            <button
+                                onClick={() => navigate('/broker')}
+                                className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full transition-colors ${brokerConnected
+                                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                    }`}
+                                title={brokerConnected ? 'Angel One connected — Click to manage' : 'Click to connect Angel One'}
+                            >
+                                <Link2 className="h-3 w-3" />
+                                {brokerConnected ? 'Angel One' : 'Connect Broker'}
+                            </button>
                         )}
                     </div>
 

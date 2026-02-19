@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Layers, PenTool, BarChart3, Receipt, Briefcase, Settings, Shield } from 'lucide-react';
+import { LayoutDashboard, Layers, PenTool, BarChart3, Receipt, Briefcase, Settings, Shield, Link2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar() {
@@ -13,6 +13,7 @@ export default function Sidebar() {
         { path: '/backtest', icon: BarChart3, label: 'Backtest' },
         { path: '/trades', icon: Receipt, label: 'Trades' },
         { path: '/positions', icon: Briefcase, label: 'Positions' },
+        { path: '/broker', icon: Link2, label: 'Broker Connect' },
         { path: '/settings', icon: Settings, label: 'Settings' },
     ];
 

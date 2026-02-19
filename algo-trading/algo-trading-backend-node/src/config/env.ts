@@ -40,6 +40,7 @@ export const env = {
     ANGEL_API_KEY: optional('ANGEL_API_KEY', ''),
     ANGEL_CLIENT_ID: optional('ANGEL_CLIENT_ID', ''),
     ANGEL_MPIN: optional('ANGEL_MPIN', ''),
+    ANGEL_PASSWORD: optional('ANGEL_PASSWORD', '') || optional('ANGEL_MPIN', ''),  // password takes priority, falls back to MPIN
     ANGEL_TOTP_SECRET: optional('ANGEL_TOTP_SECRET', ''),
 
     // Trading

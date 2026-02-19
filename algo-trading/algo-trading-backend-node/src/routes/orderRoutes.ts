@@ -5,11 +5,9 @@ import { authenticate } from '../middleware/auth';
 import { orderLimiter } from '../middleware/rateLimiter';
 import { riskManagementService } from '../services/riskService';
 import { OrderExecutor } from '../engine/orderExecutor';
-import { PaperBrokerService } from '../engine/brokerService';
+import { getBrokerInstance } from '../engine/brokerFactory';
 import { z } from 'zod';
 import { ValidationError, NotFoundError, RiskBreachError } from '../utils/errors';
-
-const broker = new PaperBrokerService();
 
 const router = Router();
 
@@ -38,6 +36,8 @@ router.post(
         const { symbol, side, type, productType, quantity, price, triggerPrice, strategyId } = parsed.data;
 
         // Estimate order value for risk check
+        const broker = getBrokerInstance();
+
         let estimatedPrice = price || 0;
         if (!estimatedPrice) {
             estimatedPrice = await broker.getCurrentPrice(symbol);
@@ -116,6 +116,7 @@ router.delete(
         }
 
         if (order.brokerOrderId) {
+            const broker = getBrokerInstance();
             await broker.cancelOrder(order.brokerOrderId);
         }
 
