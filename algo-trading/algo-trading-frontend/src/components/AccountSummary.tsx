@@ -52,8 +52,8 @@ export default function AccountSummary({ accountData }: AccountSummaryProps) {
     };
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Account Overview</h3>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-5 tracking-tight">Account Overview</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 {metrics.map((metric) => {
@@ -67,8 +67,8 @@ export default function AccountSummary({ accountData }: AccountSummaryProps) {
                             </div>
                             <p className="text-xs text-gray-500 mb-1">{metric.label}</p>
                             <p className={`text-lg font-bold ${metric.isChange
-                                    ? metric.value >= 0 ? 'text-green-600' : 'text-red-600'
-                                    : 'text-gray-900'
+                                ? metric.value >= 0 ? 'text-green-600' : 'text-red-600'
+                                : 'text-gray-900'
                                 }`}>
                                 {metric.isChange && metric.value >= 0 ? '+' : ''}
                                 ₹{Math.abs(metric.value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -79,9 +79,9 @@ export default function AccountSummary({ accountData }: AccountSummaryProps) {
             </div>
 
             {/* Total PnL Summary */}
-            <div className={`mt-4 p-4 rounded-lg border-2 ${accountData.totalPnl >= 0
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-red-50 border-red-200'
+            <div className={`mt-5 p-4 rounded-xl border-2 ${accountData.totalPnl >= 0
+                ? 'bg-green-50 border-green-200'
+                : 'bg-red-50 border-red-200'
                 }`}>
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">Total PnL (Realized + Unrealized)</span>

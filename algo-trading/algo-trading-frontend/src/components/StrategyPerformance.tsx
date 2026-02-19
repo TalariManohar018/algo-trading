@@ -93,10 +93,10 @@ export default function StrategyPerformance() {
     }
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center space-x-2 mb-6">
                 <Target className="h-5 w-5 text-gray-500" />
-                <h3 className="text-lg font-semibold text-gray-900">Strategy Performance</h3>
+                <h3 className="text-lg font-semibold text-gray-900 tracking-tight">Strategy Performance</h3>
             </div>
 
             <div className="space-y-4">

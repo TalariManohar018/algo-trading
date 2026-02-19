@@ -15,8 +15,8 @@ export const WalletCard = () => {
     const usagePercent = (wallet.usedMargin / wallet.balance) * 100;
 
     return (
-        <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Wallet</h3>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-5 tracking-tight">Wallet</h3>
             <div className="space-y-4">
                 {/* Total Equity */}
                 <div>

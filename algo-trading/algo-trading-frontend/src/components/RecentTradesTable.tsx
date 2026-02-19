@@ -12,9 +12,9 @@ export default function RecentTradesTable({ trades, maxItems = 10 }: RecentTrade
     const recentTrades = trades.slice(0, maxItems);
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Recent Trades</h3>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-semibold text-gray-900 tracking-tight">Recent Trades</h3>
                 <button
                     onClick={() => navigate('/trades')}
                     className="flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-700"
@@ -56,8 +56,8 @@ export default function RecentTradesTable({ trades, maxItems = 10 }: RecentTrade
                                     </td>
                                     <td className="px-3 py-3">
                                         <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-semibold ${trade.side === 'BUY'
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-red-100 text-red-700'
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-red-100 text-red-700'
                                             }`}>
                                             {trade.side === 'BUY' ? (
                                                 <TrendingUp className="h-3 w-3" />

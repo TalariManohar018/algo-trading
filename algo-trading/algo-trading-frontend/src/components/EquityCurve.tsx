@@ -39,16 +39,16 @@ export default function EquityCurve({ equityData, startingCapital }: EquityCurve
     const filteredData = filterDataByTimeRange();
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Equity Curve</h3>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-semibold text-gray-900 tracking-tight">Equity Curve</h3>
 
                 <div className="flex items-center space-x-2">
                     <button
                         onClick={() => setTimeRange('today')}
                         className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${timeRange === 'today'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
                         Today
@@ -56,8 +56,8 @@ export default function EquityCurve({ equityData, startingCapital }: EquityCurve
                     <button
                         onClick={() => setTimeRange('7days')}
                         className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${timeRange === '7days'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
                         7 Days
@@ -65,8 +65,8 @@ export default function EquityCurve({ equityData, startingCapital }: EquityCurve
                     <button
                         onClick={() => setTimeRange('30days')}
                         className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${timeRange === '30days'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
                         30 Days

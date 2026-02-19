@@ -13,10 +13,10 @@ export default function RiskPanel({ riskGuard }: RiskPanelProps) {
     const tradesPercentUsed = (riskGuard.tradeCountToday / riskGuard.maxTradesPerDay) * 100;
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center space-x-2 mb-4">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 h-full flex flex-col">
+            <div className="flex items-center space-x-2 mb-5">
                 <Shield className="h-5 w-5 text-gray-500" />
-                <h3 className="text-lg font-semibold text-gray-900">Risk Guard</h3>
+                <h3 className="text-lg font-semibold text-gray-900 tracking-tight">Risk Guard</h3>
             </div>
 
             {riskGuard.isRiskBreached && (
@@ -51,10 +51,10 @@ export default function RiskPanel({ riskGuard }: RiskPanelProps) {
                     <div className="w-full bg-gray-200 rounded-full h-3">
                         <div
                             className={`h-3 rounded-full transition-all ${lossPercentUsed >= 80
-                                    ? 'bg-red-600'
-                                    : lossPercentUsed >= 50
-                                        ? 'bg-orange-500'
-                                        : 'bg-green-500'
+                                ? 'bg-red-600'
+                                : lossPercentUsed >= 50
+                                    ? 'bg-orange-500'
+                                    : 'bg-green-500'
                                 }`}
                             style={{ width: `${Math.min(lossPercentUsed, 100)}%` }}
                         ></div>
@@ -85,10 +85,10 @@ export default function RiskPanel({ riskGuard }: RiskPanelProps) {
                     <div className="w-full bg-gray-200 rounded-full h-3">
                         <div
                             className={`h-3 rounded-full transition-all ${tradesPercentUsed >= 80
-                                    ? 'bg-red-600'
-                                    : tradesPercentUsed >= 50
-                                        ? 'bg-orange-500'
-                                        : 'bg-blue-500'
+                                ? 'bg-red-600'
+                                : tradesPercentUsed >= 50
+                                    ? 'bg-orange-500'
+                                    : 'bg-blue-500'
                                 }`}
                             style={{ width: `${Math.min(tradesPercentUsed, 100)}%` }}
                         ></div>
@@ -105,8 +105,8 @@ export default function RiskPanel({ riskGuard }: RiskPanelProps) {
 
                 {/* Status Summary */}
                 <div className={`p-3 rounded-lg ${riskGuard.isRiskBreached
-                        ? 'bg-red-50 border border-red-200'
-                        : 'bg-green-50 border border-green-200'
+                    ? 'bg-red-50 border border-red-200'
+                    : 'bg-green-50 border border-green-200'
                     }`}>
                     <div className="flex items-center justify-between">
                         <span className="text-xs font-medium text-gray-700">Risk Status</span>

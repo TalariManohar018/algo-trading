@@ -55,11 +55,11 @@ const AuditLogViewer: React.FC = () => {
     });
 
     return (
-        <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex items-center justify-between mb-4">
+        <div className="bg-gray-800 rounded-xl shadow-sm p-6 h-full flex flex-col">
+            <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center space-x-3">
-                    <FileText className="h-6 w-6 text-white" />
-                    <h3 className="text-xl font-bold text-white">Audit Logs</h3>
+                    <FileText className="h-5 w-5 text-white" />
+                    <h3 className="text-lg font-bold text-white tracking-tight">Audit Logs</h3>
                 </div>
                 <button
                     onClick={fetchLogs}
@@ -76,8 +76,8 @@ const AuditLogViewer: React.FC = () => {
                         key={severity}
                         onClick={() => setFilter(severity)}
                         className={`px-3 py-1 rounded text-sm transition-colors ${filter === severity
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                             }`}
                     >
                         {severity}
@@ -85,7 +85,7 @@ const AuditLogViewer: React.FC = () => {
                 ))}
             </div>
 
-            <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="space-y-2 max-h-96 overflow-y-auto flex-1">
                 {filteredLogs.length === 0 ? (
                     <p className="text-gray-400 text-center py-8">No audit logs found</p>
                 ) : (

@@ -32,11 +32,11 @@ export default function FirstTimeGuidance() {
     ];
 
     return (
-        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg border border-blue-700 p-8 text-white">
+        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl border border-blue-700 p-8 text-white shadow-sm">
             <div className="max-w-4xl">
                 <div className="flex items-center space-x-3 mb-6">
                     <Rocket className="h-8 w-8" />
-                    <h2 className="text-2xl font-bold">Welcome to Algorithmic Trading!</h2>
+                    <h2 className="text-2xl font-bold tracking-tight">Welcome to Algorithmic Trading!</h2>
                 </div>
 
                 <p className="text-blue-100 mb-8">
@@ -49,7 +49,7 @@ export default function FirstTimeGuidance() {
                         return (
                             <div
                                 key={step.number}
-                                className="bg-white/10 backdrop-blur-sm rounded-lg p-6 border border-white/20 hover:bg-white/20 transition-all"
+                                className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20 hover:bg-white/20 transition-all"
                             >
                                 <div className="flex items-center space-x-3 mb-4">
                                     <div className="bg-white/20 rounded-full w-10 h-10 flex items-center justify-center font-bold text-lg">
@@ -74,7 +74,7 @@ export default function FirstTimeGuidance() {
                     })}
                 </div>
 
-                <div className="mt-8 p-4 bg-white/10 rounded-lg border border-white/20">
+                <div className="mt-8 p-4 bg-white/10 rounded-xl border border-white/20">
                     <p className="text-sm text-blue-100">
                         💡 <span className="font-semibold">Tip:</span> Start with paper trading to test your strategies risk-free before going live with real capital.
                     </p>

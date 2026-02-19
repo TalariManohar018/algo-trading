@@ -34,9 +34,9 @@ export default function RunningStrategies({
     };
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Running Strategies</h3>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-semibold text-gray-900 tracking-tight">Running Strategies</h3>
                 <div className="flex items-center space-x-2">
                     <div className="flex items-center space-x-1">
                         <div className={`h-2 w-2 rounded-full ${runningStrategies.length > 0 ? 'bg-green-500 animate-pulse' : 'bg-gray-300'

@@ -23,7 +23,7 @@ export default function EngineStatusPanel() {
     const isLocked = tradingContext.engineStatus === 'LOCKED';
 
     return (
-        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-lg border border-slate-700 p-6 text-white">
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl border border-slate-700 shadow-sm p-6 text-white">
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-3">
                     <div className={`p-2 rounded-lg ${isRunning
@@ -40,7 +40,7 @@ export default function EngineStatusPanel() {
                             }`} />
                     </div>
                     <div>
-                        <h3 className="text-lg font-semibold">Trading Engine</h3>
+                        <h3 className="text-lg font-semibold tracking-tight">Trading Engine</h3>
                         <div className="flex items-center space-x-2 mt-1">
                             {isRunning && <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>}
                             <span className={`text-sm ${isRunning

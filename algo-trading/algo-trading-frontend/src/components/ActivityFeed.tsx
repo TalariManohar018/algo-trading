@@ -40,12 +40,12 @@ export default function ActivityFeed() {
     };
 
     return (
-        <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Activity Feed</h3>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 h-full flex flex-col">
+            <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-semibold text-gray-900 tracking-tight">Activity Feed</h3>
                 <span className="text-sm text-gray-500">Last {activityLog.length} events</span>
             </div>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="space-y-2 max-h-96 overflow-y-auto flex-1">
                 {activityLog.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
                         <p>No activity yet. Start the engine to begin.</p>

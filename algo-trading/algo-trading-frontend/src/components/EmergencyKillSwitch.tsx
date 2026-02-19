@@ -41,7 +41,7 @@ const EmergencyKillSwitch: React.FC = () => {
 
     if (response) {
         return (
-            <div className="bg-red-900 border border-red-600 rounded-lg p-6">
+            <div className="bg-red-900 border border-red-600 rounded-xl shadow-sm p-6 h-full">
                 <div className="flex items-center space-x-3 mb-4">
                     <AlertOctagon className="h-8 w-8 text-red-400" />
                     <h3 className="text-xl font-bold text-white">Emergency Stop Executed</h3>
@@ -90,10 +90,10 @@ const EmergencyKillSwitch: React.FC = () => {
     }
 
     return (
-        <div className="bg-gray-800 border border-red-600 rounded-lg p-6">
+        <div className="bg-gray-800 border border-red-600 rounded-xl shadow-sm p-6 h-full flex flex-col">
             <div className="flex items-center space-x-3 mb-4">
-                <Power className="h-8 w-8 text-red-500" />
-                <h3 className="text-xl font-bold text-white">Emergency Kill Switch</h3>
+                <Power className="h-7 w-7 text-red-500" />
+                <h3 className="text-lg font-bold text-white tracking-tight">Emergency Kill Switch</h3>
             </div>
 
             <p className="text-gray-300 mb-4 text-sm">

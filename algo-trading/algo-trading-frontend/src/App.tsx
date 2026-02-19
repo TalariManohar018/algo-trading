@@ -32,11 +32,11 @@ function PublicRoute({ children }: { children: JSX.Element }) {
 function ProtectedLayout({ children }: { children: JSX.Element }) {
     return (
         <ProtectedRoute>
-            <div className="min-h-screen bg-gray-100">
+            <div className="min-h-screen bg-gray-50">
                 <Navbar />
                 <LiveTradingWarning />
                 <Sidebar />
-                <main className="ml-64 mt-16 p-8">
+                <main className="ml-64 mt-16 p-6 lg:p-8">
                     {children}
                 </main>
             </div>

@@ -26,8 +26,8 @@ export default function Sidebar() {
     }
 
     return (
-        <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-gray-50 border-r border-gray-200">
-            <nav className="p-4 space-y-2">
+        <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-64 bg-white border-r border-gray-200">
+            <nav className="p-4 space-y-1">
                 {menuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = location.pathname === item.path;
@@ -36,9 +36,9 @@ export default function Sidebar() {
                         <Link
                             key={item.path}
                             to={item.path}
-                            className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-700 hover:bg-gray-200'
+                            className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors text-sm ${isActive
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                 }`}
                         >
                             <Icon className="h-5 w-5" />

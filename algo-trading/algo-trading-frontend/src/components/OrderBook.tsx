@@ -51,11 +51,11 @@ export default function OrderBook() {
     }
 
     return (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center space-x-2">
                     <Clock className="h-5 w-5 text-gray-500" />
-                    <h3 className="text-lg font-semibold text-gray-900">Order Book</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 tracking-tight">Order Book</h3>
                     <div className="flex items-center space-x-1">
                         <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse"></div>
                         <span className="text-xs text-gray-500">Processing</span>

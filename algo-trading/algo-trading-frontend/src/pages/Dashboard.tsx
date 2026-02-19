@@ -331,12 +331,12 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-[1600px]">
             {/* Header with Trading Mode and Engine Controls */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Trading Control Center</h1>
-                    <p className="text-gray-600 mt-1">Real-time overview of your trading operations</p>
+                    <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Trading Control Center</h1>
+                    <p className="text-sm text-gray-500 mt-1">Real-time overview of your trading operations</p>
                 </div>
 
                 {/* Engine Controls */}
@@ -404,7 +404,7 @@ export default function Dashboard() {
             </div>
 
             {/* Paper Trading Banner */}
-            <div className="bg-yellow-50 border border-yellow-300 rounded-lg px-5 py-3 flex items-center space-x-3">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-5 py-3 flex items-center space-x-3 shadow-sm">
                 <Info className="h-5 w-5 text-yellow-600 flex-shrink-0" />
                 <span className="text-sm font-semibold text-yellow-800">
                     Paper Trading Mode — No Real Trades Are Being Executed
@@ -413,7 +413,7 @@ export default function Dashboard() {
 
             {/* Risk Locked Banner */}
             {isEngineLocked && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl shadow-sm">
                     <div className="flex items-start">
                         <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
                         <div className="ml-3">
@@ -429,7 +429,7 @@ export default function Dashboard() {
 
             {/* Live Trading Warning Banner */}
             {settings.tradingMode === 'LIVE' && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl shadow-sm">
                     <div className="flex items-start">
                         <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
                         <div className="ml-3">
@@ -444,7 +444,7 @@ export default function Dashboard() {
 
             {/* Orders In Queue */}
             {tradingContext.orders.filter(o => o.status === 'PLACED').length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm">
                     <h3 className="text-sm font-semibold text-blue-900 mb-2">Orders In Queue</h3>
                     <div className="space-y-2">
                         {tradingContext.orders
@@ -474,15 +474,15 @@ export default function Dashboard() {
             <OrderBook />
 
             {/* Risk Guard and Activity Feed */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <RiskPanel riskGuard={riskGuard} />
-                <ActivityFeed />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                <div className="h-full"><RiskPanel riskGuard={riskGuard} /></div>
+                <div className="h-full"><ActivityFeed /></div>
             </div>
 
             {/* Emergency Controls and Audit Logs */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <EmergencyKillSwitch />
-                <AuditLogViewer />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                <div className="h-full"><EmergencyKillSwitch /></div>
+                <div className="h-full"><AuditLogViewer /></div>
             </div>
 
             {/* Running Strategies */}
@@ -495,7 +495,7 @@ export default function Dashboard() {
 
             {/* Open Positions */}
             {openPositions.length > 0 && (
-                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
                     <h2 className="text-xl font-bold text-gray-900 mb-4">Open Positions ({openPositions.length})</h2>
                     <div className="space-y-2">
                         {openPositions.map(position => (
@@ -541,7 +541,7 @@ export default function Dashboard() {
 
             {/* Quick Stats Summary */}
             {!isFirstTimeUser && runningStrategies.length > 0 && (
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg border border-blue-700 p-6 text-white">
+                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl border border-blue-700 p-6 text-white shadow-sm">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         <div>
                             <div className="flex items-center space-x-1 mb-1">
