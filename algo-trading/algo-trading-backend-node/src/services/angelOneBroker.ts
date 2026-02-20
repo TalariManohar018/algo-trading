@@ -37,6 +37,7 @@ export interface AngelOneConfig {
     clientId: string;
     password: string;        // MPIN or password
     totpSecret: string;
+    liveTotp?: string;       // Optional: pre-generated 6-digit TOTP code
 }
 
 export class AngelOneBrokerService implements IBrokerService {
@@ -61,7 +62,23 @@ export class AngelOneBrokerService implements IBrokerService {
      */
     async login(): Promise<AngelOneTokens> {
         return withRetry(async () => {
-            const totp = generateTOTP(this.config.totpSecret);
+            // Use live TOTP code if provided, otherwise generate from secret
+            let totp: string;
+            if (this.config.liveTotp && /^\d{6}$/.test(this.config.liveTotp)) {
+                totp = this.config.liveTotp;
+                logger.info('Using user-provided live TOTP code');
+            } else {
+                totp = await generateTOTP(this.config.totpSecret);
+            }
+
+            logger.info('Angel One login attempt', {
+                clientId: this.config.clientId,
+                apiKeyPrefix: this.config.apiKey?.substring(0, 4) + '***',
+                totpSecretLength: this.config.totpSecret?.length,
+                generatedTotpLength: totp.length,
+                passwordLength: this.config.password?.length,
+                usedLiveTotp: !!this.config.liveTotp,
+            });
 
             const response = await this.rawRequest('/rest/auth/angelbroking/user/v1/loginByPassword', {
                 method: 'POST',
@@ -71,6 +88,14 @@ export class AngelOneBrokerService implements IBrokerService {
                     totp,
                 }),
                 auth: false,
+            });
+
+            logger.info('Angel One login response', {
+                status: response.status,
+                message: response.message,
+                hasData: !!response.data,
+                hasJwtToken: !!response.data?.jwtToken,
+                errorCode: response.errorcode,
             });
 
             if (!response.data?.jwtToken) {
@@ -676,13 +701,16 @@ export class AngelOneBrokerService implements IBrokerService {
             const data: any = await response.json();
             const elapsed = Date.now() - startTime;
 
-            // Log every API call for audit trail
+            // Log every API call for audit trail (include response details for login)
             logger.debug('Angel One API', {
                 method: options.method,
                 path,
                 status: response.status,
                 elapsed: `${elapsed}ms`,
                 success: response.ok,
+                responseMessage: data?.message,
+                responseStatus: data?.status,
+                errorCode: data?.errorcode,
             });
 
             if (!response.ok) {

@@ -28,6 +28,7 @@ export default function BrokerConnect() {
         clientId: '',
         password: '',
         totpSecret: '',
+        liveTotp: '',
     });
 
     // Check broker status on mount
@@ -51,8 +52,8 @@ export default function BrokerConnect() {
 
     // Login handler
     const handleLogin = async () => {
-        if (!creds.apiKey || !creds.clientId || !creds.password || !creds.totpSecret) {
-            showError('Please fill in all fields');
+        if (!creds.apiKey || !creds.clientId || !creds.password || (!creds.totpSecret && !creds.liveTotp)) {
+            showError('Please fill in all fields. Provide either TOTP Secret or a live 6-digit TOTP code.');
             return;
         }
 
@@ -63,7 +64,7 @@ export default function BrokerConnect() {
                 showSuccess('Connected to Angel One! Live trading is now available.');
                 updateSettings({ tradingMode: 'LIVE' });
                 setShowForm(false);
-                setCreds({ apiKey: '', clientId: '', password: '', totpSecret: '' });
+                setCreds({ apiKey: '', clientId: '', password: '', totpSecret: '', liveTotp: '' });
                 await checkStatus();
             } else {
                 showError(result.message);
@@ -298,8 +299,8 @@ export default function BrokerConnect() {
                                         <input
                                             type={showPasswords ? 'text' : 'password'}
                                             value={creds.totpSecret}
-                                            onChange={(e) => setCreds({ ...creds, totpSecret: e.target.value.toUpperCase() })}
-                                            placeholder="Base32 TOTP secret from Angel One app"
+                                            onChange={(e) => setCreds({ ...creds, totpSecret: e.target.value.toUpperCase(), liveTotp: e.target.value ? '' : creds.liveTotp })}
+                                            placeholder="Base32 TOTP secret from Angel One app (recommended)"
                                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm pr-10 uppercase"
                                         />
                                         <button
@@ -311,7 +312,29 @@ export default function BrokerConnect() {
                                         </button>
                                     </div>
                                     <p className="text-xs text-gray-400 mt-1">
-                                        Found in Angel One app → Settings → TOTP → Scan QR code to get secret
+                                        Recommended: Found in Angel One app → Settings → TOTP → Scan QR code to get secret
+                                    </p>
+                                </div>
+
+                                {/* Live TOTP Code (alternative — only if no TOTP Secret) */}
+                                <div className={creds.totpSecret ? 'opacity-40 pointer-events-none' : ''}>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        OR Enter Live TOTP Code {creds.totpSecret && <span className="text-xs text-green-600 font-normal">(not needed — auto-generating from secret)</span>}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={creds.liveTotp || ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                                            setCreds({ ...creds, liveTotp: val, totpSecret: val ? '' : creds.totpSecret });
+                                        }}
+                                        placeholder="6-digit code from authenticator app"
+                                        maxLength={6}
+                                        disabled={!!creds.totpSecret}
+                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm tracking-widest text-center font-mono text-lg disabled:bg-gray-100"
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">
+                                        Only use this if you don't have the TOTP secret. Enter the 6-digit code from your authenticator app.
                                     </p>
                                 </div>
 

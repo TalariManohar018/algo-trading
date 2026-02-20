@@ -11,6 +11,7 @@ export interface BrokerLoginRequest {
     clientId: string;
     password: string;
     totpSecret: string;
+    liveTotp?: string;  // Optional: direct 6-digit TOTP from authenticator app
 }
 
 export interface BrokerStatus {
@@ -24,10 +25,18 @@ export interface BrokerStatus {
  * Login to Angel One SmartAPI
  */
 export async function brokerLogin(creds: BrokerLoginRequest): Promise<{ success: boolean; message: string; data?: any }> {
+    // Only send liveTotp if totpSecret is empty (they are mutually exclusive)
+    const payload = {
+        apiKey: creds.apiKey,
+        clientId: creds.clientId,
+        password: creds.password,
+        totpSecret: creds.totpSecret || '',
+        ...(creds.liveTotp && !creds.totpSecret ? { liveTotp: creds.liveTotp } : {}),
+    };
     const res = await fetch(`${BROKER_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(creds),
+        body: JSON.stringify(payload),
     });
     const json = await res.json();
     // Normalize: backend error handler uses "error" field, success uses "data"

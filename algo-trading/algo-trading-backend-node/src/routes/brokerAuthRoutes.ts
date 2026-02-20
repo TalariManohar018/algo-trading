@@ -17,19 +17,25 @@ const router = Router();
  */
 router.post('/login', authenticate, async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { apiKey, clientId, password, mpin, totpSecret } = req.body;
+        const { apiKey, clientId, password, mpin, totpSecret, liveTotp } = req.body;
         const userId = req.user!.userId;
         const brokerPassword = password || mpin;  // accept either field
 
-        if (!apiKey || !clientId || !brokerPassword || !totpSecret) {
+        if (!apiKey || !clientId || !brokerPassword || (!totpSecret && !liveTotp)) {
             return res.status(400).json({
                 success: false,
-                error: 'Missing required fields: apiKey, clientId, password (or mpin), totpSecret',
+                error: 'Missing required fields: apiKey, clientId, password (or mpin), totpSecret (or liveTotp)',
             });
         }
 
         // Create Angel One broker instance and login
-        const broker = new AngelOneBrokerService({ apiKey, clientId, password: brokerPassword, totpSecret });
+        const broker = new AngelOneBrokerService({
+            apiKey,
+            clientId,
+            password: brokerPassword,
+            totpSecret: totpSecret || '',
+            liveTotp: liveTotp || undefined,
+        });
         const tokens = await broker.login();
 
         // Store session in the global broker instance
