@@ -66,7 +66,7 @@ export default function BrokerConnect() {
                 setCreds({ apiKey: '', clientId: '', password: '', totpSecret: '' });
                 await checkStatus();
             } else {
-                showError(result.message || 'Login failed. Check your credentials.');
+                showError(result.message);
             }
         } catch (err: any) {
             showError(err.message || 'Failed to connect to Angel One');

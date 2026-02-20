@@ -71,6 +71,7 @@ router.post('/login', authenticate, async (req: Request, res: Response, next: Ne
 
         res.json({
             success: true,
+            message: 'Connected to Angel One successfully',
             data: {
                 broker: 'angelone',
                 clientId,

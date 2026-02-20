@@ -30,9 +30,11 @@ export function errorHandler(
     const statusCode = err instanceof AppError ? err.statusCode : 500;
 
     // Build response
+    const errorMessage = err instanceof AppError ? err.message : 'Internal server error';
     const response: Record<string, unknown> = {
         success: false,
-        error: err instanceof AppError ? err.message : 'Internal server error',
+        error: errorMessage,
+        message: errorMessage, // also include as "message" for frontend compatibility
     };
 
     // Include validation details

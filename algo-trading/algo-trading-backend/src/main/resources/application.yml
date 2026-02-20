@@ -36,7 +36,7 @@ server:
     include-binding-errors: always
 
 jwt:
-  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
   expiration: 86400000
 
 logging:
@@ -65,6 +65,7 @@ broker:
     totp-secret: ${ZERODHA_TOTP_SECRET:}
   angel:
     api-key: ${ANGEL_API_KEY:}
+    api-secret: ${ANGEL_API_SECRET:}
     client-id: ${ANGEL_CLIENT_ID:}
     password: ${ANGEL_PASSWORD:}
     totp-secret: ${ANGEL_TOTP_SECRET:}

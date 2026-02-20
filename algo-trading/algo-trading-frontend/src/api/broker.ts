@@ -23,13 +23,19 @@ export interface BrokerStatus {
 /**
  * Login to Angel One SmartAPI
  */
-export async function brokerLogin(creds: BrokerLoginRequest): Promise<{ success: boolean; message: string; profile?: any }> {
+export async function brokerLogin(creds: BrokerLoginRequest): Promise<{ success: boolean; message: string; data?: any }> {
     const res = await fetch(`${BROKER_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(creds),
     });
-    return res.json();
+    const json = await res.json();
+    // Normalize: backend error handler uses "error" field, success uses "data"
+    return {
+        success: json.success ?? false,
+        message: json.message || json.error || (json.success ? 'Connected' : 'Login failed'),
+        data: json.data,
+    };
 }
 
 /**

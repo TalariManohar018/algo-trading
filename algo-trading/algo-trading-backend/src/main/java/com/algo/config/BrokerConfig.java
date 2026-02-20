@@ -25,8 +25,16 @@ public class BrokerConfig {
     @Data
     public static class AngelConfig {
         private String apiKey;
+        private String apiSecret;
         private String clientId;
         private String password;
         private String totpSecret;
+
+        /** Returns a masked version of the API secret for safe logging */
+        public String getMaskedApiSecret() {
+            if (apiSecret == null || apiSecret.isBlank()) return "[NOT SET]";
+            if (apiSecret.length() <= 8) return "****";
+            return apiSecret.substring(0, 4) + "****" + apiSecret.substring(apiSecret.length() - 4);
+        }
     }
 }
