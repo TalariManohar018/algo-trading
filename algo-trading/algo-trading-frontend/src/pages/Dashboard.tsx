@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Play, Square, AlertCircle, Info } from 'lucide-react';
+import { AlertTriangle, Play, Square, AlertCircle, Info, CheckCircle } from 'lucide-react';
 import { Strategy } from '../services/strategyService';
 import { tradingEngine } from '../services/tradingEngine';
 import { useTradingContext } from '../context/TradingContext';
 import { useError } from '../context/ErrorContext';
 import { useSettings } from '../context/SettingsContext';
 import { useLoading } from '../context/LoadingContext';
+import { getBrokerStatus, BrokerStatus } from '../api/broker';
 import AccountSummary from '../components/AccountSummary';
 import RiskPanel from '../components/RiskPanel';
 import ActivityFeed from '../components/ActivityFeed';
@@ -28,10 +29,26 @@ export default function Dashboard() {
 
     const [strategies, setStrategies] = useState<Strategy[]>([]);
     const [loading, setLoading] = useState(true);
+    const [brokerStatus, setBrokerStatus] = useState<BrokerStatus | null>(null);
+
+    const isBrokerConnected = brokerStatus?.connected === true;
+
+    // Fetch broker status from API
+    const fetchBrokerStatus = useCallback(async () => {
+        try {
+            const status = await getBrokerStatus();
+            setBrokerStatus(status);
+        } catch {
+            setBrokerStatus({ connected: false, broker: 'none', mode: 'paper' });
+        }
+    }, []);
 
     useEffect(() => {
         fetchDashboardData();
         initializeTradingEngine();
+        fetchBrokerStatus();
+        const interval = setInterval(fetchBrokerStatus, 15000); // poll every 15s
+        return () => clearInterval(interval);
     }, []);
 
     // Sync strategies from TradingContext
@@ -161,7 +178,7 @@ export default function Dashboard() {
             return;
         }
 
-        if (tradingContext.tradingMode === 'LIVE') {
+        if (tradingContext.tradingMode === 'LIVE' && !isBrokerConnected) {
             showError('Live Trading mode is active but broker is not connected. Go to Broker Connect page to link your Angel One account.');
             console.warn('[Dashboard] Engine start blocked — LIVE mode, broker not connected');
             return;
@@ -174,7 +191,11 @@ export default function Dashboard() {
 
         try {
             await tradingContext.startEngine();
-            showSuccess(`Paper trading engine started — using virtual wallet`);
+            if (tradingContext.tradingMode === 'LIVE') {
+                showSuccess('Live trading engine started — orders will execute on Angel One');
+            } else {
+                showSuccess('Paper trading engine started — using virtual wallet');
+            }
             console.log(`[Dashboard] Engine started | Mode: ${tradingContext.tradingMode}`);
         } catch (error: any) {
             showError(error.message || 'Failed to start engine');
@@ -184,7 +205,7 @@ export default function Dashboard() {
     const handleStopEngine = async () => {
         try {
             await tradingContext.stopEngine();
-            showSuccess('Paper trading engine stopped');
+            showSuccess('Trading engine stopped');
         } catch (error: any) {
             showError(error.message || 'Failed to stop engine');
         }
@@ -421,6 +442,13 @@ export default function Dashboard() {
                         Paper Trading Mode — No real trades are being executed. Virtual wallet: ₹{settings.startingCapital.toLocaleString('en-IN')}
                     </span>
                 </div>
+            ) : isBrokerConnected ? (
+                <div className="flex items-center gap-3 bg-green-50 border border-green-300 rounded-xl px-4 py-3">
+                    <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                    <span className="text-sm font-semibold text-green-800">
+                        Live Trading Mode — Angel One connected (Client: {brokerStatus?.clientId || 'Connected'}). Orders execute with real money.
+                    </span>
+                </div>
             ) : (
                 <div className="flex items-center gap-3 bg-red-50 border border-red-300 rounded-xl px-4 py-3">
                     <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
@@ -441,8 +469,8 @@ export default function Dashboard() {
                 </div>
             )}
 
-            {/* Live Trading Separately Disabled Banner */}
-            {tradingContext.tradingMode === 'LIVE' && (
+            {/* Live Trading Disabled Banner — only show if broker NOT connected */}
+            {tradingContext.tradingMode === 'LIVE' && !isBrokerConnected && (
                 <div className="flex items-start gap-3 bg-red-50 border-l-4 border-red-500 rounded-xl px-4 py-3">
                     <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
                     <div>
