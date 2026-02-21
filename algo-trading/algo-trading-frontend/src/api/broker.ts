@@ -25,26 +25,45 @@ export interface BrokerStatus {
  * Login to Angel One SmartAPI
  */
 export async function brokerLogin(creds: BrokerLoginRequest): Promise<{ success: boolean; message: string; data?: any }> {
-    // Only send liveTotp if totpSecret is empty (they are mutually exclusive)
-    const payload = {
-        apiKey: creds.apiKey,
-        clientId: creds.clientId,
-        password: creds.password,
-        totpSecret: creds.totpSecret || '',
-        ...(creds.liveTotp && !creds.totpSecret ? { liveTotp: creds.liveTotp } : {}),
-    };
-    const res = await fetch(`${BROKER_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
-    const json = await res.json();
-    // Normalize: backend error handler uses "error" field, success uses "data"
-    return {
-        success: json.success ?? false,
-        message: json.message || json.error || (json.success ? 'Connected' : 'Login failed'),
-        data: json.data,
-    };
+    try {
+        // Only send liveTotp if totpSecret is empty (they are mutually exclusive)
+        const payload = {
+            apiKey: creds.apiKey,
+            clientId: creds.clientId,
+            password: creds.password,
+            totpSecret: creds.totpSecret || '',
+            ...(creds.liveTotp && !creds.totpSecret ? { liveTotp: creds.liveTotp } : {}),
+        };
+        const res = await fetch(`${BROKER_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+        });
+        
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.error('Broker login failed:', res.status, errorText);
+            return {
+                success: false,
+                message: `HTTP ${res.status}: ${errorText || res.statusText}`,
+            };
+        }
+        
+        const json = await res.json();
+        // Normalize: backend error handler uses "error" field, success uses "data"
+        return {
+            success: json.success ?? false,
+            message: json.message || json.error || (json.success ? 'Connected' : 'Login failed'),
+            data: json.data,
+        };
+    } catch (error: any) {
+        console.error('Broker login network error:', error);
+        return {
+            success: false,
+            message: `Network error: ${error.message || 'Failed to connect to backend'}`,
+        };
+    }
 }
 
 /**
@@ -54,6 +73,7 @@ export async function brokerLogout(): Promise<{ success: boolean }> {
     const res = await fetch(`${BROKER_URL}/logout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
     });
     return res.json();
 }
@@ -62,7 +82,9 @@ export async function brokerLogout(): Promise<{ success: boolean }> {
  * Get current broker connection status
  */
 export async function getBrokerStatus(): Promise<BrokerStatus> {
-    const res = await fetch(`${BROKER_URL}/status`);
+    const res = await fetch(`${BROKER_URL}/status`, {
+        credentials: 'include',
+    });
     const data = await res.json();
     return data.data || data;
 }
@@ -72,6 +94,7 @@ export async function getBrokerStatus(): Promise<BrokerStatus> {
  */
 export async function refreshBrokerSession(): Promise<{ success: boolean }> {
     const res = await fetch(`${BROKER_URL}/refresh`, {
+        credentials: 'include',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
     });
@@ -84,6 +107,7 @@ export async function refreshBrokerSession(): Promise<{ success: boolean }> {
 export async function emergencyStop(squareOff = false): Promise<{ success: boolean; message: string }> {
     const res = await fetch(`${BROKER_URL}/emergency-stop`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ squareOff }),
     });
@@ -97,6 +121,7 @@ export async function resumeTrading(): Promise<{ success: boolean; message: stri
     const res = await fetch(`${BROKER_URL}/resume`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
     });
     return res.json();
 }
