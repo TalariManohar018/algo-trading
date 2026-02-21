@@ -6,6 +6,10 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate, authorize } from '../middleware/auth';
 import { executionEngine } from '../engine/executionEngine';
 import { riskManagementService } from '../services/riskService';
+import { executionQueue } from '../engine/executionQueue';
+import { mtmEngine } from '../engine/mtmEngine';
+import { slippageModel } from '../engine/slippageModel';
+import { orderReconciliationService } from '../engine/orderReconciliation';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -202,6 +206,67 @@ router.post('/unlock', authenticate, async (req: Request, res: Response, next: N
             success: true,
             message: 'Engine unlocked. Pre-trade checks will run before next trade.',
         });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/engine/production-stats — Full production monitoring dashboard data
+ * Returns: queue metrics, MTM portfolio, slippage stats, reconciliation state
+ */
+router.get('/production-stats', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = req.user!.userId;
+
+        const [queueMetrics, portfolio, latencyStats, riskState] = await Promise.all([
+            executionQueue.getMetrics(),
+            mtmEngine.getPortfolioSnapshot(userId),
+            slippageModel.getLatencyStats(),
+            riskManagementService.getRiskState(userId),
+        ]);
+
+        res.json({
+            success: true,
+            data: {
+                timestamp: new Date().toISOString(),
+                queue: queueMetrics,
+                portfolio: {
+                    totalCapital: portfolio.totalCapital,
+                    availableMargin: portfolio.availableMargin,
+                    usedMargin: portfolio.usedMargin,
+                    unrealisedPnl: portfolio.unrealisedPnl,
+                    realisedPnlToday: portfolio.realisedPnlToday,
+                    totalPnlToday: portfolio.totalPnlToday,
+                    drawdownPct: portfolio.drawdownPct,
+                    openPositionCount: portfolio.openPositionCount,
+                    byStrategy: portfolio.byStrategy,
+                },
+                positions: portfolio.positions,
+                latency: latencyStats,
+                risk: {
+                    dailyLoss: riskState.dailyLoss,
+                    dailyTradeCount: riskState.dailyTradeCount,
+                    consecutiveLosses: riskState.consecutiveLosses,
+                    isLocked: riskState.isLocked,
+                    lockReason: riskState.lockReason,
+                },
+                engine: executionEngine.getStatus(),
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+/**
+ * GET /api/engine/portfolio — Real-time portfolio snapshot with per-position MTM
+ */
+router.get('/portfolio', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = req.user!.userId;
+        const snapshot = mtmEngine.getPortfolioSnapshot(userId);
+        res.json({ success: true, data: snapshot });
     } catch (error) {
         next(error);
     }

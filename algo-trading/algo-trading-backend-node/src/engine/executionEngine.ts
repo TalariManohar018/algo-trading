@@ -12,16 +12,23 @@
 // ============================================================
 
 import { EventEmitter } from 'events';
+import { v4 as uuidv4 } from 'uuid';
 import prisma from '../config/database';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 import { marketDataService, TickData } from '../services/marketDataService';
+import { candleAggregator } from '../services/candleAggregator';
 import { OrderExecutor } from './orderExecutor';
 import { getBrokerInstance } from './brokerFactory';
 import { riskManagementService } from '../services/riskService';
 import { strategyRegistry } from '../strategies';
 import { Signal, StrategyConfig, StrategyResult } from '../strategies/base';
 import { CandleInput } from '../strategies/indicators';
+import { executionQueue } from './executionQueue';
+import { conflictResolver } from './conflictResolver';
+import { slippageModel } from './slippageModel';
+import { mtmEngine } from './mtmEngine';
+import { orderReconciliationService } from './orderReconciliation';
 
 export interface EngineStatus {
     running: boolean;
@@ -57,6 +64,8 @@ export class ExecutionEngine extends EventEmitter {
     private emergencyStopped = false;
     // Track positions with in-flight close orders (prevents duplicate SL/TP closes)
     private closingPositionIds = new Set<string>();
+    // Track per-strategy signal timestamps for latency/slippage measurement
+    private signalTimestamps = new Map<string, Date>();
 
     /**
      * Start the execution engine — subscribes to market data,
@@ -95,15 +104,47 @@ export class ExecutionEngine extends EventEmitter {
         // 3. Load all RUNNING strategies from DB
         await this.loadActiveStrategies();
 
-        // 3. Subscribe to market data events
+        // 4. Subscribe to market data events
         marketDataService.on('candle_close', this.onCandleClose.bind(this));
         marketDataService.on('tick', this.onTick.bind(this));
+        // Also forward candle closes from multi-TF aggregator
+        candleAggregator.on('candle_close', this.onCandleClose.bind(this));
+
+        // 5. Wire execution queue handler
+        executionQueue.setHandler(async (queuedOrder) => {
+            if (!this.orderExecutor) throw new Error('No order executor');
+            await this.orderExecutor.executeOrder({
+                userId: queuedOrder.userId,
+                strategyId: queuedOrder.strategyId,
+                symbol: queuedOrder.symbol,
+                exchange: queuedOrder.exchange,
+                side: queuedOrder.side,
+                quantity: queuedOrder.quantity,
+                orderType: queuedOrder.orderType,
+                limitPrice: queuedOrder.limitPrice,
+                triggerPrice: queuedOrder.triggerPrice,
+                stopLoss: queuedOrder.stopLoss,
+                takeProfit: queuedOrder.takeProfit,
+            });
+        });
+
+        // 6. Start MTM engine
+        mtmEngine.start(env.MAX_TRADE_SIZE, 'dev-user-001');
+        mtmEngine.on('portfolio_snapshot', (snap) => this.emit('portfolio_snapshot', snap));
+
+        // 7. Start order reconciliation (only in live mode)
+        if (env.TRADING_MODE === 'live') {
+            orderReconciliationService.start(broker);
+            orderReconciliationService.on('order_filled', (ev) => this.emit('order_filled', ev));
+            orderReconciliationService.on('partial_fill', (ev) => this.emit('partial_fill', ev));
+            orderReconciliationService.on('order_rejected', (ev) => this.emit('order_rejected', ev));
+        }
 
         this.running = true;
         this.emergencyStopped = false;
         this.startedAt = new Date();
 
-        // 4. Ensure market data is running for all strategy symbols
+        // 8. Ensure market data is running for all strategy symbols
         const strategySymbols = [...new Set(Array.from(this.activeStrategies.values()).map((s) => s.symbol))];
         const baseSymbols = ['NIFTY', 'BANKNIFTY', 'RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
         const allSymbols = [...new Set([...baseSymbols, ...strategySymbols])];
@@ -111,6 +152,7 @@ export class ExecutionEngine extends EventEmitter {
 
         logger.info(`Engine started — ${this.activeStrategies.size} strategies active, mode: ${env.TRADING_MODE}`);
         logger.info(`Market data subscribed for: ${allSymbols.join(', ')}`);
+        logger.info(`Production services: ExecutionQueue ✓ | MTM ✓ | Reconciliation ${env.TRADING_MODE === 'live' ? '✓' : 'paper-skipped'} | CandleAggregator ✓`);
         this.emit('engine_started', { strategies: this.activeStrategies.size, mode: env.TRADING_MODE });
     }
 
@@ -125,6 +167,14 @@ export class ExecutionEngine extends EventEmitter {
         // Remove event listeners
         marketDataService.removeAllListeners('candle_close');
         marketDataService.removeAllListeners('tick');
+        candleAggregator.removeAllListeners('candle_close');
+
+        // Drain execution queue
+        executionQueue.drainUser('dev-user-001');
+
+        // Stop MTM and reconciliation
+        mtmEngine.stop();
+        orderReconciliationService.stop();
 
         // Update all running strategies to PAUSED (EOD auto-stop, restored at 9 AM)
         for (const [id] of this.activeStrategies) {
@@ -299,15 +349,27 @@ export class ExecutionEngine extends EventEmitter {
 
     /**
      * Called on every candle close — evaluate all matching strategies.
+     * Only processes 1-minute candles for strategy evaluation (5m/15m use aggregated data).
      */
     private async onCandleClose(event: { symbol: string; timeframe: string; candle: CandleInput }) {
         if (!this.running || this.emergencyStopped) return;
 
         const { symbol, timeframe, candle } = event;
 
+        // Only trigger strategy evaluation on 1-minute candles to avoid redundant signals.
+        // Strategies needing 5m/15m data will call candleAggregator.getCandles() internally.
+        if (timeframe !== 'ONE_MINUTE') return;
+
+        // Clear per-candle dedup gates — allow fresh signals this candle
+        executionQueue.clearDedupForNewCandle();
+        conflictResolver.clearCandleSignals();
+
         // Find all strategies watching this symbol
         for (const [id, strategy] of this.activeStrategies) {
             if (strategy.symbol !== symbol) continue;
+
+            // Record signal timestamp for latency tracking
+            this.signalTimestamps.set(strategy.id, new Date());
 
             try {
                 await this.evaluateStrategy(strategy, symbol);
@@ -334,12 +396,22 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     /**
-     * Called on every tick — real-time P&L broadcast + SL/TP auto-close.
+     * Called on every tick — real-time P&L broadcast + SL/TP auto-close + MTM.
      */
     private async onTick(tick: TickData) {
         if (!this.running || this.emergencyStopped) return;
         // Broadcast to WebSocket clients
         this.emit('tick', tick);
+        // Update MTM for all open positions on this symbol
+        mtmEngine.onTick(tick.symbol, tick.lastPrice);
+        // Feed tick into multi-TF candle aggregator
+        candleAggregator.processTick({
+            symbol: tick.symbol,
+            exchange: tick.exchange,
+            lastPrice: tick.lastPrice,
+            volume: tick.volume,
+            timestamp: tick.timestamp,
+        });
         // Check open positions for SL/TP triggers
         await this.monitorPositionsForSlTp(tick);
     }
@@ -491,7 +563,41 @@ export class ExecutionEngine extends EventEmitter {
             logger.debug(`🔒 LIVE_SAFE_MODE: qty capped to 1 for ${strategy.name}`);
         }
 
-        // 8c. Full pre-order risk check
+        // 8c. Conflict resolution — prevent opposing signals across strategies
+        slippageModel.recordSignalTime(strategy.id);
+        const conflictDecision = await conflictResolver.resolve({
+            strategyId: strategy.id,
+            strategyName: strategy.name,
+            userId: strategy.userId,
+            symbol,
+            side: result.signal === Signal.BUY ? 'BUY' : 'SELL',
+            positionSide: result.signal === Signal.BUY ? 'LONG' : 'SHORT',
+            quantity: effectiveQty,
+            confidence: result.confidence,
+            timestamp: new Date(),
+        });
+        if (!conflictDecision.allowed) {
+            logger.info(`🔀 Conflict block [${strategy.name}]: ${conflictDecision.reason}`);
+            await riskManagementService.logRejectedTrade(strategy.userId, symbol, result.signal, `CONFLICT: ${conflictDecision.reason}`);
+            return;
+        }
+        if (conflictDecision.adjustedQuantity) effectiveQty = conflictDecision.adjustedQuantity;
+
+        // 8d. Slippage check — reject if signal is stale or slippage too high
+        const slippageEst = slippageModel.estimate(
+            symbol,
+            result.signal === Signal.BUY ? 'BUY' : 'SELL',
+            entryPrice,
+            effectiveQty,
+            this.signalTimestamps.get(strategy.id)
+        );
+        if (!slippageEst.isViable) {
+            logger.warn(`⚠️  Slippage block [${strategy.name}]: ${slippageEst.rejectReason ?? `${slippageEst.slippagePct}% slippage`}`);
+            await riskManagementService.logRejectedTrade(strategy.userId, symbol, result.signal, `SLIPPAGE: ${slippageEst.rejectReason ?? slippageEst.slippagePct + '%'}`);
+            return;
+        }
+
+        // 8e. Full pre-order risk check
         const estimatedValue = effectiveQty * entryPrice;
         const riskCheck = await riskManagementService.checkPreOrder(strategy.userId, estimatedValue, stopLossPercent);
         if (!riskCheck.allowed) {
@@ -509,7 +615,7 @@ export class ExecutionEngine extends EventEmitter {
             return;
         }
 
-        // 8d. Calculate SL and TP prices
+        // 8f. Calculate SL and TP prices
         const stopLossPrice = result.signal === Signal.BUY
             ? entryPrice * (1 - stopLossPercent / 100)
             : entryPrice * (1 + stopLossPercent / 100);
@@ -519,8 +625,12 @@ export class ExecutionEngine extends EventEmitter {
                 : entryPrice * (1 - takeProfitPercent / 100))
             : entryPrice * (result.signal === Signal.BUY ? 1.05 : 0.95); // default 5% TP
 
-        // 9. Place order with mandatory SL + TP
-        logger.info(`📊 SIGNAL: ${result.signal} ${symbol} | Strategy: ${strategy.name} | Qty: ${effectiveQty} | Entry: ₹${entryPrice.toFixed(2)} | SL: ₹${stopLossPrice.toFixed(2)} | TP: ₹${takeProfitPrice.toFixed(2)} | Risk: ₹${(effectiveQty * entryPrice * stopLossPercent / 100).toFixed(0)}`);
+        // 9. Log slippage-adjusted entry
+        const slippageAdj = slippageModel.estimate(symbol,
+            result.signal === Signal.BUY ? 'BUY' : 'SELL', entryPrice, effectiveQty);
+        const adjustedEntry = slippageAdj.adjustedEntry;
+
+        logger.info(`📊 SIGNAL: ${result.signal} ${symbol} | Strategy: ${strategy.name} | Qty: ${effectiveQty} | Entry: ₹${entryPrice.toFixed(2)} (adj ₹${adjustedEntry.toFixed(2)}) | SL: ₹${stopLossPrice.toFixed(2)} | TP: ₹${takeProfitPrice.toFixed(2)} | Risk: ₹${(effectiveQty * entryPrice * stopLossPercent / 100).toFixed(0)} | Slip: ${slippageAdj.slippagePct}%`);
 
         // Log trade entry to audit trail
         await riskManagementService.logTrade(strategy.userId, {
@@ -535,37 +645,36 @@ export class ExecutionEngine extends EventEmitter {
             reason: result.reason || `Signal: ${result.signal} (${(result.confidence * 100).toFixed(0)}% confidence)`,
         });
 
-        try {
-            const order = await this.orderExecutor!.executeOrder({
-                userId: strategy.userId,
-                strategyId: strategy.id,
-                symbol: strategy.symbol,
-                exchange: strategy.exchange,
-                side: result.signal === Signal.BUY ? 'BUY' : 'SELL',
-                quantity: effectiveQty,
-                orderType: 'MARKET',
-                stopLoss: stopLossPrice,
-                takeProfit: takeProfitPrice,
-            });
+        // 10. Enqueue order (serialised, de-duplicated, rate-limited via ExecutionQueue)
+        const queued = executionQueue.enqueue({
+            id: uuidv4(),
+            userId: strategy.userId,
+            strategyId: strategy.id,
+            symbol: strategy.symbol,
+            exchange: strategy.exchange,
+            side: result.signal === Signal.BUY ? 'BUY' : 'SELL',
+            quantity: effectiveQty,
+            orderType: 'MARKET',
+            stopLoss: stopLossPrice,
+            takeProfit: takeProfitPrice,
+            priority: Math.round(result.confidence * 10), // higher confidence = higher priority
+            enqueuedAt: new Date(),
+        });
 
+        if (queued) {
             this.totalOrders++;
             strategy.todayTradeCount++;
-
-            this.emit('order_placed', {
+            this.emit('order_queued', {
                 strategyId: strategy.id,
                 strategyName: strategy.name,
-                orderId: order.id,
                 symbol,
                 side: result.signal,
                 quantity: effectiveQty,
                 stopLoss: stopLossPrice,
                 takeProfit: takeProfitPrice,
             });
-
-            logger.info(`✅ Order placed: ${order.id} | ${result.signal} ${effectiveQty}x ${symbol} | SL: ₹${stopLossPrice.toFixed(2)} | TP: ₹${takeProfitPrice.toFixed(2)}`);
-        } catch (error: any) {
-            logger.error(`❌ Order failed: ${error.message}`);
-            this.emit('order_error', { strategyId: strategy.id, error: error.message });
+        } else {
+            logger.warn(`⏭ Order not queued (dedup/full) for ${strategy.name} ${symbol}`);
         }
     }
 
