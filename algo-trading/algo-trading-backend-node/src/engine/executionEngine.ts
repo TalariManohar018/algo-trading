@@ -68,11 +68,29 @@ export class ExecutionEngine extends EventEmitter {
 
         logger.info('═══ EXECUTION ENGINE STARTING ═══');
 
-        // 1. Create order executor with current broker
+        // 1. Run pre-trading validation
         const broker = getBrokerInstance();
+        if (env.TRADING_MODE === 'live') {
+            if (!broker.isConnected()) {
+                logger.error('❌ LIVE MODE: Broker not connected — engine start aborted');
+                throw new Error('Broker not connected. Engine cannot start in live mode.');
+            }
+            const validation = await riskManagementService.validatePreTrading('dev-user-001');
+            for (const check of validation.checks) {
+                const icon = check.passed ? '✅' : '❌';
+                logger.info(`  ${icon} ${check.name}: ${check.message}`);
+            }
+            if (!validation.ok) {
+                const blocked = validation.checks.filter(c => !c.passed).map(c => c.name).join(', ');
+                logger.error(`❌ Pre-trading validation FAILED — blocked by: ${blocked}`);
+                // Do not throw — allow engine start during off-hours so cron can activate it
+            }
+        }
+
+        // 2. Create order executor with current broker
         this.orderExecutor = new OrderExecutor(broker);
 
-        // 2. Load all RUNNING strategies from DB
+        // 3. Load all RUNNING strategies from DB
         await this.loadActiveStrategies();
 
         // 3. Subscribe to market data events
@@ -376,36 +394,56 @@ export class ExecutionEngine extends EventEmitter {
             if (result.signal === Signal.SELL && openPosition.side === 'SHORT') return;
         }
 
-        // 8. Risk check — both lock check and pre-order validation
-        const riskState = await prisma.riskState.findUnique({
-            where: { userId: strategy.userId },
-        });
-        if (riskState?.isLocked) {
-            logger.warn(`Risk locked for user ${strategy.userId}: ${riskState.lockReason}`);
+        // 8. Risk check — all 10 rules via riskManagementService
+        const lastCandle = candles[candles.length - 1];
+        const entryPrice = lastCandle?.close || 0;
+        const stopLossPercent = strategy.config.stopLossPercent || 0;
+        const takeProfitPercent = strategy.config.takeProfitPercent || 0;
+
+        // 8a. Require stop loss to be configured — HARD block
+        if (stopLossPercent <= 0) {
+            logger.warn(`❌ Order blocked for ${strategy.name}: stopLossPercent not set. Add a stop loss to trade.`);
             return;
         }
 
-        // Pre-order risk check (validates daily loss, max trade size, open positions)
-        try {
-            const lastCandle = candles[candles.length - 1];
-            const estimatedValue = (strategy.config.quantity || 1) * (lastCandle?.close || 0);
-            const riskCheck = await riskManagementService.checkPreOrder(strategy.userId, estimatedValue);
-            if (!riskCheck.allowed) {
-                logger.warn(`Risk check BLOCKED order: ${riskCheck.reason}`, {
-                    userId: strategy.userId,
-                    strategy: strategy.name,
-                    symbol,
-                    estimatedValue,
-                });
-                return;
-            }
-        } catch (riskErr: any) {
-            logger.error(`Risk check error (allowing order): ${riskErr.message}`);
-            // Don't block on risk service errors — log and continue
+        // 8b. Calculate safe position size based on ₹100 max risk
+        const safeQty = riskManagementService.calculatePositionSize(entryPrice, stopLossPercent);
+        const effectiveQty = Math.min(safeQty, strategy.config.quantity || 1);
+
+        // 8c. Full pre-order risk check
+        const estimatedValue = effectiveQty * entryPrice;
+        const riskCheck = await riskManagementService.checkPreOrder(strategy.userId, estimatedValue, stopLossPercent);
+        if (!riskCheck.allowed) {
+            logger.warn(`⛔ Risk BLOCKED [${strategy.name}]: ${riskCheck.reason}`);
+            this.emit('risk_blocked', { strategyId: strategy.id, reason: riskCheck.reason });
+            return;
         }
 
-        // 9. Place order
-        logger.info(`📊 SIGNAL: ${result.signal} ${symbol} | Strategy: ${strategy.name} | Confidence: ${(result.confidence * 100).toFixed(1)}% | Reason: ${result.reason}`);
+        // 8d. Calculate SL and TP prices
+        const stopLossPrice = result.signal === Signal.BUY
+            ? entryPrice * (1 - stopLossPercent / 100)
+            : entryPrice * (1 + stopLossPercent / 100);
+        const takeProfitPrice = takeProfitPercent > 0
+            ? (result.signal === Signal.BUY
+                ? entryPrice * (1 + takeProfitPercent / 100)
+                : entryPrice * (1 - takeProfitPercent / 100))
+            : entryPrice * (result.signal === Signal.BUY ? 1.05 : 0.95); // default 5% TP
+
+        // 9. Place order with mandatory SL + TP
+        logger.info(`📊 SIGNAL: ${result.signal} ${symbol} | Strategy: ${strategy.name} | Qty: ${effectiveQty} | Entry: ₹${entryPrice.toFixed(2)} | SL: ₹${stopLossPrice.toFixed(2)} | TP: ₹${takeProfitPrice.toFixed(2)} | Risk: ₹${(effectiveQty * entryPrice * stopLossPercent / 100).toFixed(0)}`);
+
+        // Log trade entry to audit trail
+        await riskManagementService.logTrade(strategy.userId, {
+            strategyId: strategy.id,
+            symbol,
+            side: result.signal === Signal.BUY ? 'BUY' : 'SELL',
+            entryPrice,
+            stopLoss: stopLossPrice,
+            takeProfit: takeProfitPrice,
+            quantity: effectiveQty,
+            timestamp: new Date(),
+            reason: result.reason || `Signal: ${result.signal} (${(result.confidence * 100).toFixed(0)}% confidence)`,
+        });
 
         try {
             const order = await this.orderExecutor!.executeOrder({
@@ -414,8 +452,10 @@ export class ExecutionEngine extends EventEmitter {
                 symbol: strategy.symbol,
                 exchange: strategy.exchange,
                 side: result.signal === Signal.BUY ? 'BUY' : 'SELL',
-                quantity: strategy.config.quantity,
+                quantity: effectiveQty,
                 orderType: 'MARKET',
+                stopLoss: stopLossPrice,
+                takeProfit: takeProfitPrice,
             });
 
             this.totalOrders++;
@@ -427,10 +467,12 @@ export class ExecutionEngine extends EventEmitter {
                 orderId: order.id,
                 symbol,
                 side: result.signal,
-                quantity: strategy.config.quantity,
+                quantity: effectiveQty,
+                stopLoss: stopLossPrice,
+                takeProfit: takeProfitPrice,
             });
 
-            logger.info(`✅ Order placed: ${order.id} | ${result.signal} ${strategy.config.quantity}x ${symbol}`);
+            logger.info(`✅ Order placed: ${order.id} | ${result.signal} ${effectiveQty}x ${symbol} | SL: ₹${stopLossPrice.toFixed(2)} | TP: ₹${takeProfitPrice.toFixed(2)}`);
         } catch (error: any) {
             logger.error(`❌ Order failed: ${error.message}`);
             this.emit('order_error', { strategyId: strategy.id, error: error.message });

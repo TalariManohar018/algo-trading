@@ -45,9 +45,12 @@ export const env = {
 
     // Trading
     TRADING_MODE: optional('TRADING_MODE', 'paper') as 'paper' | 'live',
-    MAX_DAILY_LOSS: parseFloat(optional('MAX_DAILY_LOSS', '5000')),
-    MAX_TRADE_SIZE: parseFloat(optional('MAX_TRADE_SIZE', '50000')),
-    MAX_OPEN_POSITIONS: parseInt(optional('MAX_OPEN_POSITIONS', '5')),
+    MAX_DAILY_LOSS: parseFloat(optional('MAX_DAILY_LOSS', '200')),
+    MAX_TRADE_SIZE: parseFloat(optional('MAX_TRADE_SIZE', '5000')),
+    MAX_OPEN_POSITIONS: parseInt(optional('MAX_OPEN_POSITIONS', '2')),
+    MAX_RISK_PER_TRADE: parseFloat(optional('MAX_RISK_PER_TRADE', '100')),
+    MAX_TRADES_PER_DAY: parseInt(optional('MAX_TRADES_PER_DAY', '5')),
+    CONSECUTIVE_LOSS_LIMIT: parseInt(optional('CONSECUTIVE_LOSS_LIMIT', '3')),
 
     // Rate Limiting
     RATE_LIMIT_WINDOW_MS: parseInt(optional('RATE_LIMIT_WINDOW_MS', '60000')),

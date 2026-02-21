@@ -9,6 +9,7 @@ import prisma from '../config/database';
 import { IBrokerService, BrokerOrder } from './brokerService';
 import { tradeLogger } from '../utils/logger';
 import { TradingError, RiskBreachError } from '../utils/errors';
+import { riskManagementService } from '../services/riskService';
 
 export interface OrderRequest {
     userId: string;
@@ -139,7 +140,7 @@ export class OrderExecutor {
      */
     private async handleFill(request: OrderRequest, order: any, filledPrice: number) {
         if (request.side === 'BUY') {
-            // Open a new LONG position
+            // Open a new LONG position with SL and TP
             await prisma.position.create({
                 data: {
                     userId: request.userId,
@@ -150,6 +151,8 @@ export class OrderExecutor {
                     quantity: request.quantity,
                     entryPrice: filledPrice,
                     currentPrice: filledPrice,
+                    stopLoss: request.stopLoss ?? null,
+                    takeProfit: request.takeProfit ?? null,
                     entryOrderId: order.id,
                     status: 'OPEN',
                 },
@@ -165,12 +168,14 @@ export class OrderExecutor {
                 },
             });
 
-            tradeLogger.info('Position opened', {
+            tradeLogger.info('Position OPENED', {
                 userId: request.userId,
                 symbol: request.symbol,
                 side: 'LONG',
                 entryPrice: filledPrice,
                 quantity: request.quantity,
+                stopLoss: request.stopLoss,
+                takeProfit: request.takeProfit,
             });
         } else {
             // Close existing position
@@ -223,6 +228,24 @@ export class OrderExecutor {
                         duration,
                     },
                 });
+
+                // ――― RISK: record result (consecutive losses, daily loss auto-lock) ―――
+                await riskManagementService.recordTradeResult(request.userId, pnl);
+                await riskManagementService.logTrade(request.userId, {
+                    strategyId: request.strategyId,
+                    symbol: request.symbol,
+                    side: position.side === 'LONG' ? 'BUY' : 'SELL',
+                    entryPrice: position.entryPrice,
+                    exitPrice: filledPrice,
+                    stopLoss: position.stopLoss ?? 0,
+                    takeProfit: position.takeProfit ?? 0,
+                    quantity: position.quantity,
+                    pnl,
+                    timestamp: new Date(),
+                    reason: pnl >= 0 ? `WIN +₹${pnl.toFixed(2)}` : `LOSS -₹${Math.abs(pnl).toFixed(2)}`,
+                });
+
+                tradeLogger.info(`Trade CLOSED | ${request.symbol} | PnL: ₹${pnl.toFixed(2)} (${pnlPercent.toFixed(1)}%) | Duration: ${duration}s | Entry: ₹${position.entryPrice} | Exit: ₹${filledPrice} | SL was: ₹${position.stopLoss ?? 'N/A'} | TP was: ₹${position.takeProfit ?? 'N/A'}`);
 
                 // Release margin and update P&L
                 const marginRelease = position.entryPrice * position.quantity * 0.2;

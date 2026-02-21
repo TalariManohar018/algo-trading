@@ -157,6 +157,8 @@ model Position {
   entryPrice    Float
   currentPrice  Float
   exitPrice     Float?
+  stopLoss      Float?    // mandatory stop loss price
+  takeProfit    Float?    // mandatory take profit price
   unrealizedPnl Float     @default(0)
   realizedPnl   Float     @default(0)
   status        String    @default("OPEN")
@@ -226,14 +228,15 @@ model Candle {
 // ─── RISK STATE ─────────────────────────────────────────────
 
 model RiskState {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  dailyLoss       Float    @default(0)
-  dailyTradeCount Int      @default(0)
-  isLocked        Boolean  @default(false)
-  lockReason      String?
-  tradingDate     DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  dailyLoss          Float    @default(0)
+  dailyTradeCount    Int      @default(0)
+  consecutiveLosses  Int      @default(0)
+  isLocked           Boolean  @default(false)
+  lockReason         String?
+  tradingDate        DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

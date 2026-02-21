@@ -12,6 +12,7 @@ import { logger } from './utils/logger';
 import { marketDataService } from './services/marketDataService';
 import { executionEngine } from './engine/executionEngine';
 import { autoConnectBroker } from './engine/brokerFactory';
+import { riskManagementService } from './services/riskService';
 import { tradingWS } from './websocket/wsServer';
 import http from 'http';
 import cron from 'node-cron';
@@ -113,17 +114,20 @@ async function main() {
             }
         }, { timezone: 'Asia/Kolkata' });
 
-        // 9:00 AM IST — pre-market: re-start execution engine on trading days
+        // 9:00 AM IST — pre-market: reset daily risk counters + start engine
         cron.schedule('0 9 * * 1-5', async () => {
-            logger.info('🌅 Pre-market (9:00 AM IST) — starting execution engine');
+            logger.info('🌅 Pre-market (9:00 AM IST) — resetting daily risk counters & starting engine');
             try {
+                // Reset daily counters (loss, trade count, consec losses) for fresh day
+                await riskManagementService.resetDailyCounters('dev-user-001');
+                logger.info('✅ Daily risk counters reset: loss=₹0, trades=0, consec_losses=0');
                 await executionEngine.start();
             } catch (err: any) {
                 logger.error('Engine pre-market start failed', { error: err.message });
             }
         }, { timezone: 'Asia/Kolkata' });
 
-        logger.info('📅 Live trading scheduler active: auto-squareoff 3:20 PM, engine-stop 3:30 PM, engine-start 9:00 AM (Mon-Fri IST)');
+        logger.info('📅 Live trading scheduler active: reset+start 9:00 AM | square-off 3:20 PM | stop 3:30 PM (Mon-Fri IST)');
     }
 
     // 7. Graceful shutdown
