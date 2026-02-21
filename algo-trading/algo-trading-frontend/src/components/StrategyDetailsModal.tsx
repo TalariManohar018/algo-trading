@@ -14,11 +14,25 @@ interface StrategyDetailsModalProps {
 export default function StrategyDetailsModal({
     strategy,
     onClose,
+    onStart,
+    onStop,
     onDuplicate,
     onDelete
 }: StrategyDetailsModalProps) {
     const { showSuccess } = useError();
-    const isRunning = strategy.status === 'RUNNING';
+    const isRunning = strategy.status === 'RUNNING' || strategy.status === 'ACTIVE';
+
+    const handleStart = () => {
+        if (onStart) {
+            onStart(strategy.id);
+        }
+    };
+
+    const handleStop = () => {
+        if (onStop) {
+            onStop(strategy.id);
+        }
+    };
 
     const handleDuplicate = () => {
         if (onDuplicate) {
@@ -172,18 +186,16 @@ export default function StrategyDetailsModal({
                     <div>
                         {isRunning ? (
                             <button
-                                disabled
-                                className="flex items-center space-x-2 px-6 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
-                                title="Execution engine not enabled yet"
+                                onClick={handleStop}
+                                className="flex items-center space-x-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                             >
                                 <Square className="h-4 w-4" />
                                 <span>Stop Strategy</span>
                             </button>
                         ) : (
                             <button
-                                disabled
-                                className="flex items-center space-x-2 px-6 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
-                                title="Execution engine not enabled yet"
+                                onClick={handleStart}
+                                className="flex items-center space-x-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                             >
                                 <Play className="h-4 w-4" />
                                 <span>Start Strategy</span>
