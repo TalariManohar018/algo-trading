@@ -15,7 +15,9 @@ export const strategyApi = {
             ? `${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}?search=${encodeURIComponent(search)}`
             : `${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}`;
 
-        const response = await fetch(url);
+        const response = await fetch(url, {
+            credentials: 'include',
+        });
         if (!response.ok) throw new Error('Failed to fetch strategies');
         const result = await response.json();
         return unwrap<ExecutableStrategy[]>(result, []);
@@ -23,7 +25,9 @@ export const strategyApi = {
 
     // Get strategy by ID
     getStrategyById: async (id: number | string): Promise<ExecutableStrategy> => {
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}`);
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}`, {
+            credentials: 'include',
+        });
         if (!response.ok) throw new Error('Failed to fetch strategy');
         const result = await response.json();
         return unwrap<ExecutableStrategy>(result, result);
@@ -36,6 +40,7 @@ export const strategyApi = {
             headers: {
                 'Content-Type': 'application/json',
             },
+            credentials: 'include',
             body: JSON.stringify(strategy),
         });
         if (!response.ok) {
@@ -51,11 +56,13 @@ export const strategyApi = {
         // Start in execution engine (backend)
         const engineRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ENGINE}/strategy/${id}/start`, {
             method: 'POST',
+            credentials: 'include',
         });
         if (!engineRes.ok) {
             // Fallback: try the old activate endpoint
             const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}/activate`, {
                 method: 'PUT',
+                credentials: 'include',
             });
             if (!response.ok) throw new Error('Failed to activate strategy');
             const result = await response.json();
@@ -70,11 +77,13 @@ export const strategyApi = {
         // Stop in execution engine (backend)
         const engineRes = await fetch(`${API_BASE_URL}${API_ENDPOINTS.ENGINE}/strategy/${id}/stop`, {
             method: 'POST',
+            credentials: 'include',
         });
         if (!engineRes.ok) {
             // Fallback: try the old deactivate endpoint
             const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}/deactivate`, {
                 method: 'PUT',
+                credentials: 'include',
             });
             if (!response.ok) throw new Error('Failed to deactivate strategy');
             const result = await response.json();
@@ -88,6 +97,7 @@ export const strategyApi = {
     updateStrategyStatus: async (id: number, status: string): Promise<ExecutableStrategy> => {
         const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}/status?status=${status}`, {
             method: 'PUT',
+            credentials: 'include',
         });
         if (!response.ok) throw new Error('Failed to update strategy status');
         const result = await response.json();
@@ -98,6 +108,7 @@ export const strategyApi = {
     deleteStrategy: async (id: number): Promise<void> => {
         const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}`, {
             method: 'DELETE',
+            credentials: 'include',
         });
         if (!response.ok) throw new Error('Failed to delete strategy');
     },
