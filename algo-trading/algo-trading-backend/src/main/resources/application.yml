@@ -104,6 +104,14 @@ trading:
     default-max-pct: ${MAX_SLIPPAGE_PCT:0.5}
     max-signal-age-ms: 3000
 
+  # ── Startup recovery ──────────────────────────────────────────────────────
+  recovery:
+    enabled: true                       # Enable/disable crash recovery on startup
+    max-retries: 5                      # Max attempts to reconcile with broker
+    initial-delay-ms: 2000              # Initial retry delay
+    max-delay-ms: 60000                 # Max retry delay (capped exponential backoff)
+    backoff-multiplier: 2.0             # Exponential backoff multiplier
+
 # Broker Configuration
 broker:
   mode: PAPER # PAPER (mock) or LIVE (real money)

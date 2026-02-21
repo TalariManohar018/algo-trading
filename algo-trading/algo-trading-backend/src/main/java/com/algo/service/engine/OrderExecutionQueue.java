@@ -127,6 +127,32 @@ public class OrderExecutionQueue {
     }
 
     /**
+     * Force enqueue order bypassing deduplication checks.
+     * Used for crash recovery to re-enqueue failed orders.
+     * Still respects queue depth limits for safety.
+     * 
+     * @return true if accepted, false if queue is full
+     */
+    public boolean forceEnqueue(QueuedOrder order) {
+        // Check depth limit only
+        if (queue.size() >= MAX_QUEUE_DEPTH) {
+            log.warn("[QUEUE] Force-enqueue REJECTED: queue full ({}/{})",
+                    queue.size(), MAX_QUEUE_DEPTH);
+            totalDroppedDepth.incrementAndGet();
+            return false;
+        }
+
+        queue.offer(order);
+        totalEnqueued.incrementAndGet();
+        
+        log.info("[QUEUE] Force-enqueued (recovery): {} {} {} qty={} priority={}",
+                order.getSymbol(), order.getSide(), order.getStrategyName(),
+                order.getQuantity(), order.getPriority());
+        
+        return true;
+    }
+
+    /**
      * Blocking take — called by OrderQueueWorker.
      */
     public QueuedOrder take() throws InterruptedException {

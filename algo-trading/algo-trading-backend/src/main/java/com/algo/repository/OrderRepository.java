@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -15,4 +16,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByStatusIn(List<OrderStatus> statuses);
     List<Order> findByUserIdAndStatusIn(Long userId, List<OrderStatus> statuses);
     boolean existsByDeduplicationKey(String deduplicationKey);
+    
+    // Recovery queries
+    Optional<Order> findByBrokerOrderId(String brokerOrderId);
+    List<Order> findByStatusInOrderByCreatedAtAsc(List<OrderStatus> statuses);
 }

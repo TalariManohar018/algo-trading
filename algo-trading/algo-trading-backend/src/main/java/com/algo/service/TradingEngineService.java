@@ -50,6 +50,7 @@ public class TradingEngineService {
     private final SlippageProtectionService slippageProtectionService;
     private final RealTimeMtmService realTimeMtmService;
     private final PriceCacheService priceCacheService;
+    private final TradingEngineStateManager stateManager;
 
     // signal timestamps: strategyId → last signal time
     private final Map<Long, LocalDateTime> signalTimestamps = new HashMap<>();
@@ -200,6 +201,13 @@ public class TradingEngineService {
         if (engineStatus != EngineStatus.RUNNING || currentUserId == null) {
             return;
         }
+
+        // Check if trading is enabled (paused during recovery)
+        if (!stateManager.isTradingEnabled()) {
+            log.debug("Trading paused: {} - skipping candle evaluation", 
+                    stateManager.getPauseReason());
+            return;
+        }
         
         try {
             log.debug("Processing candle close: {} @ {}", candle.getSymbol(), candle.getClose());
@@ -303,13 +311,20 @@ public class TradingEngineService {
             log.error("Error evaluating strategy {}: {}", strategy.getName(), e.getMessage(), e);
         }
     }
-    
+
     /**
      * Enter a new position — routes order through the production pipeline:
      * slippageCheck → riskCheck → queue.enqueue() → (async) OrderQueueWorker
      */
     private void enterPosition(Long userId, Strategy strategy, double currentPrice) {
         try {
+            // Additional safety check - verify trading is enabled
+            if (!stateManager.isTradingEnabled()) {
+                log.warn("[ENGINE] Trading paused - cannot enter position for strategy {}: {}",
+                        strategy.getName(), stateManager.getPauseReason());
+                return;
+            }
+
             LocalDateTime signalTime = signalTimestamps.getOrDefault(strategy.getId(), LocalDateTime.now());
 
             // ── 1. Slippage viability check ──────────────────────────────────
