@@ -313,6 +313,21 @@ export class ExecutionEngine extends EventEmitter {
                 await this.evaluateStrategy(strategy, symbol);
             } catch (error: any) {
                 logger.error(`Strategy evaluation error [${strategy.name}]: ${error.message}`);
+                // LIVE_SAFE_MODE: halt strategy immediately on any uncaught evaluation error.
+                // Prevents a broken strategy from looping and placing bad orders.
+                if (env.LIVE_SAFE_MODE) {
+                    logger.warn(`🔒 LIVE_SAFE_MODE: auto-halting strategy "${strategy.name}" — manual restart required`);
+                    this.activeStrategies.delete(id);
+                    await prisma.strategy.update({ where: { id }, data: { status: 'ERROR' } }).catch(() => { });
+                    await prisma.auditLog.create({
+                        data: {
+                            userId: strategy.userId,
+                            event: 'STRATEGY_ERROR',
+                            severity: 'CRITICAL',
+                            message: `LIVE_SAFE_MODE: strategy "${strategy.name}" auto-halted — ${error.message}`,
+                        },
+                    }).catch(() => { });
+                }
                 this.emit('strategy_error', { strategyId: id, error: error.message });
             }
         }
@@ -459,20 +474,38 @@ export class ExecutionEngine extends EventEmitter {
 
         // 8a. Require stop loss to be configured — HARD block
         if (stopLossPercent <= 0) {
+            const rejReason = `Mandatory SL not set on "${strategy.name}" — set stopLossPercent > 0 to trade`;
             logger.warn(`❌ Order blocked for ${strategy.name}: stopLossPercent not set. Add a stop loss to trade.`);
+            await riskManagementService.logRejectedTrade(strategy.userId, symbol, result.signal, rejReason);
             return;
         }
 
         // 8b. Calculate safe position size based on ₹100 max risk
         const safeQty = riskManagementService.calculatePositionSize(entryPrice, stopLossPercent);
-        const effectiveQty = Math.min(safeQty, strategy.config.quantity || 1);
+        // Use `let` so LIVE_SAFE_MODE can cap it below
+        let effectiveQty = Math.min(safeQty, strategy.config.quantity || 1);
+
+        // LIVE_SAFE_MODE: hard cap quantity to 1 per order — smallest possible test size
+        if (env.LIVE_SAFE_MODE) {
+            effectiveQty = 1;
+            logger.debug(`🔒 LIVE_SAFE_MODE: qty capped to 1 for ${strategy.name}`);
+        }
 
         // 8c. Full pre-order risk check
         const estimatedValue = effectiveQty * entryPrice;
         const riskCheck = await riskManagementService.checkPreOrder(strategy.userId, estimatedValue, stopLossPercent);
         if (!riskCheck.allowed) {
             logger.warn(`⛔ Risk BLOCKED [${strategy.name}]: ${riskCheck.reason}`);
+            await riskManagementService.logRejectedTrade(strategy.userId, symbol, result.signal, riskCheck.reason || 'Risk check failed');
             this.emit('risk_blocked', { strategyId: strategy.id, reason: riskCheck.reason });
+            return;
+        }
+
+        // LIVE_SAFE_MODE: disable auto re-entry — only 1 trade per strategy per day
+        if (env.LIVE_SAFE_MODE && strategy.todayTradeCount > 0) {
+            const reentryReason = `LIVE_SAFE_MODE: re-entry disabled — "${strategy.name}" already traded ${strategy.todayTradeCount}x today`;
+            logger.info(`🔒 LIVE_SAFE_MODE: re-entry blocked for ${strategy.name} (${strategy.todayTradeCount} trades today)`);
+            await riskManagementService.logRejectedTrade(strategy.userId, symbol, result.signal, reentryReason);
             return;
         }
 

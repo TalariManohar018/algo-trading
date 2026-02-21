@@ -52,6 +52,13 @@ export const env = {
     MAX_TRADES_PER_DAY: parseInt(optional('MAX_TRADES_PER_DAY', '5')),
     CONSECUTIVE_LOSS_LIMIT: parseInt(optional('CONSECUTIVE_LOSS_LIMIT', '3')),
 
+    // ── LIVE_SAFE_MODE ──────────────────────────────────────
+    // When true (default for live):
+    //   • Qty capped to 1 per order
+    //   • Auto re-entry disabled (1 trade per strategy per day)
+    //   • Strategy auto-halted (status → ERROR) on any evaluation error
+    LIVE_SAFE_MODE: optional('LIVE_SAFE_MODE', 'true') === 'true',
+
     // Rate Limiting
     RATE_LIMIT_WINDOW_MS: parseInt(optional('RATE_LIMIT_WINDOW_MS', '60000')),
     RATE_LIMIT_MAX_REQUESTS: parseInt(optional('RATE_LIMIT_MAX_REQUESTS', '100')),

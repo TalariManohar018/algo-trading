@@ -278,6 +278,28 @@ export class RiskManagementService {
         });
     }
 
+    /**
+     * Persist every rejected (blocked) order to the audit log.
+     * Called for every trade blocked by risk rules, missing SL, mode checks, etc.
+     * This gives a full audit trail of WHY trades were not taken.
+     */
+    async logRejectedTrade(userId: string, symbol: string, signal: string, reason: string): Promise<void> {
+        try {
+            await prisma.auditLog.create({
+                data: {
+                    userId,
+                    event: 'TRADE_REJECTED',
+                    severity: 'WARNING',
+                    message: `REJECTED [${signal}] ${symbol}: ${reason}`,
+                    metadata: JSON.stringify({ symbol, signal, reason, timestamp: new Date().toISOString() }),
+                },
+            });
+            riskLogger.warn(`TRADE REJECTED [${signal}] ${symbol}: ${reason}`, { userId });
+        } catch (err: any) {
+            riskLogger.error(`Failed to log rejected trade: ${err.message}`);
+        }
+    }
+
     // ─── ENGINE LOCK / UNLOCK ────────────────────────────────
 
     /**
