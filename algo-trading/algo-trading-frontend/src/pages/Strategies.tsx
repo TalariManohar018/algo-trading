@@ -177,6 +177,7 @@ export default function Strategies() {
         switch (status) {
             case 'RUNNING': return 'badge badge-green';
             case 'STOPPED': return 'badge badge-gray';
+            case 'PAUSED': return 'badge badge-yellow';
             case 'ERROR': return 'badge badge-red';
             default: return 'badge badge-blue';
         }

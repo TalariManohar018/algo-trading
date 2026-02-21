@@ -55,6 +55,8 @@ export class ExecutionEngine extends EventEmitter {
     private totalSignals = 0;
     private totalOrders = 0;
     private emergencyStopped = false;
+    // Track positions with in-flight close orders (prevents duplicate SL/TP closes)
+    private closingPositionIds = new Set<string>();
 
     /**
      * Start the execution engine — subscribes to market data,
@@ -102,12 +104,13 @@ export class ExecutionEngine extends EventEmitter {
         this.startedAt = new Date();
 
         // 4. Ensure market data is running for all strategy symbols
-        const symbols = [...new Set(Array.from(this.activeStrategies.values()).map((s) => s.symbol))];
-        if (symbols.length > 0) {
-            marketDataService.start(symbols);
-        }
+        const strategySymbols = [...new Set(Array.from(this.activeStrategies.values()).map((s) => s.symbol))];
+        const baseSymbols = ['NIFTY', 'BANKNIFTY', 'RELIANCE', 'TCS', 'INFY', 'HDFCBANK'];
+        const allSymbols = [...new Set([...baseSymbols, ...strategySymbols])];
+        marketDataService.start(allSymbols);
 
         logger.info(`Engine started — ${this.activeStrategies.size} strategies active, mode: ${env.TRADING_MODE}`);
+        logger.info(`Market data subscribed for: ${allSymbols.join(', ')}`);
         this.emit('engine_started', { strategies: this.activeStrategies.size, mode: env.TRADING_MODE });
     }
 
@@ -123,11 +126,11 @@ export class ExecutionEngine extends EventEmitter {
         marketDataService.removeAllListeners('candle_close');
         marketDataService.removeAllListeners('tick');
 
-        // Update all running strategies to STOPPED in DB
+        // Update all running strategies to PAUSED (EOD auto-stop, restored at 9 AM)
         for (const [id] of this.activeStrategies) {
             await prisma.strategy.update({
                 where: { id },
-                data: { status: 'STOPPED' },
+                data: { status: 'PAUSED' },
             }).catch(() => { /* ignore if already updated */ });
         }
 
@@ -316,12 +319,66 @@ export class ExecutionEngine extends EventEmitter {
     }
 
     /**
-     * Called on every tick — used for real-time P&L + SL/TP monitoring.
+     * Called on every tick — real-time P&L broadcast + SL/TP auto-close.
      */
-    private onTick(tick: TickData) {
-        if (!this.running) return;
-        // Emit for WebSocket broadcast
+    private async onTick(tick: TickData) {
+        if (!this.running || this.emergencyStopped) return;
+        // Broadcast to WebSocket clients
         this.emit('tick', tick);
+        // Check open positions for SL/TP triggers
+        await this.monitorPositionsForSlTp(tick);
+    }
+
+    /**
+     * For every tick, check all open positions on that symbol and auto-close
+     * if the current price has crossed the stored stopLoss or takeProfit.
+     */
+    private async monitorPositionsForSlTp(tick: TickData) {
+        const positions = await prisma.position.findMany({
+            where: { symbol: tick.symbol, status: 'OPEN' },
+        }) as Array<{
+            id: string; userId: string; strategyId: string | null;
+            symbol: string; exchange: string; side: string;
+            quantity: number; entryPrice: number;
+            stopLoss: number | null; takeProfit: number | null;
+        }>;
+
+        for (const pos of positions) {
+            const price = tick.lastPrice;
+            let trigger: 'SL' | 'TP' | null = null;
+
+            if (pos.side === 'LONG') {
+                if (pos.stopLoss && price <= pos.stopLoss) trigger = 'SL';
+                else if (pos.takeProfit && price >= pos.takeProfit) trigger = 'TP';
+            } else {
+                if (pos.stopLoss && price >= pos.stopLoss) trigger = 'SL';
+                else if (pos.takeProfit && price <= pos.takeProfit) trigger = 'TP';
+            }
+
+            if (!trigger || !this.orderExecutor) continue;
+
+            // Prevent duplicate close orders (in-memory guard for same-tick duplicates)
+            if (this.closingPositionIds.has(pos.id)) continue;
+            this.closingPositionIds.add(pos.id);
+
+            logger.warn(`🎯 ${trigger} TRIGGERED | ${pos.symbol} | Price: ₹${price} | ${trigger === 'SL' ? `SL: ₹${pos.stopLoss}` : `TP: ₹${pos.takeProfit}`}`);
+
+            try {
+                await this.orderExecutor.executeOrder({
+                    userId: pos.userId,
+                    strategyId: pos.strategyId ?? undefined,
+                    symbol: pos.symbol,
+                    exchange: pos.exchange,
+                    side: pos.side === 'LONG' ? 'SELL' : 'BUY',
+                    quantity: pos.quantity,
+                    orderType: 'MARKET',
+                });
+                this.emit('sl_tp_triggered', { symbol: pos.symbol, trigger, price });
+            } catch (err: any) {
+                logger.error(`Auto ${trigger} close failed for ${pos.symbol}: ${err.message}`);
+                this.closingPositionIds.delete(pos.id); // allow retry on next tick
+            }
+        }
     }
 
     /**

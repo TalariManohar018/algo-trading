@@ -14,12 +14,13 @@ export default function RunningStrategies({
     isRiskBreached = false
 }: RunningStrategiesProps) {
     const { settings } = useSettings();
-    const runningStrategies = strategies.filter(s => s.status === 'RUNNING');
+    const runningStrategies = strategies.filter(s => s.status === 'RUNNING' || s.status === 'PAUSED');
 
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'RUNNING': return 'bg-green-100 text-green-700 border-green-200';
             case 'STOPPED': return 'bg-gray-100 text-gray-700 border-gray-200';
+            case 'PAUSED': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
             case 'ERROR': return 'bg-red-100 text-red-700 border-red-200';
             default: return 'bg-blue-100 text-blue-700 border-blue-200';
         }
@@ -29,6 +30,7 @@ export default function RunningStrategies({
         switch (status) {
             case 'RUNNING': return <Play className="h-3 w-3" />;
             case 'STOPPED': return <Square className="h-3 w-3" />;
+            case 'PAUSED': return <Clock className="h-3 w-3" />;
             default: return <Activity className="h-3 w-3" />;
         }
     };

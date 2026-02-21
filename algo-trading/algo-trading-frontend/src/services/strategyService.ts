@@ -8,7 +8,7 @@ export interface Strategy {
     symbol: string;
     instrumentType: 'OPTION' | 'FUTURE';
     timeframe?: string;
-    status: 'CREATED' | 'RUNNING' | 'STOPPED' | 'ERROR';
+    status: 'CREATED' | 'RUNNING' | 'STOPPED' | 'PAUSED' | 'ERROR';
     createdAt: string;
     updatedAt: string;
     conditions: Condition[];
@@ -183,11 +183,14 @@ class StrategyService {
         };
     }
 
-    private mapStatus(backendStatus: string): 'CREATED' | 'RUNNING' | 'STOPPED' | 'ERROR' {
+    private mapStatus(backendStatus: string): 'CREATED' | 'RUNNING' | 'STOPPED' | 'PAUSED' | 'ERROR' {
         switch (backendStatus) {
             case 'ACTIVE': return 'RUNNING';
             case 'INACTIVE': return 'STOPPED';
             case 'CREATED': return 'CREATED';
+            case 'RUNNING': return 'RUNNING';
+            case 'STOPPED': return 'STOPPED';
+            case 'PAUSED': return 'PAUSED';
             case 'ERROR': return 'ERROR';
             default: return 'CREATED';
         }
