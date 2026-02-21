@@ -2,6 +2,7 @@ import { apiClient } from '../api/apiClient';
 
 export interface Strategy {
     id: number;
+    originalId?: string;   // raw UUID from backend
     name: string;
     description: string;
     symbol: string;
@@ -87,9 +88,10 @@ class StrategyService {
         }
     }
 
-    async deleteStrategy(id: number): Promise<void> {
+    async deleteStrategy(id: number, originalId?: string): Promise<void> {
         try {
-            await apiClient.deleteStrategy(id.toString());
+            const uuid = originalId || id.toString();
+            await apiClient.deleteStrategy(uuid);
         } catch (error) {
             console.error('Failed to delete strategy:', error);
             throw new Error('Failed to delete strategy');
@@ -165,10 +167,10 @@ class StrategyService {
             value: c.value
         }));
 
+        const rawId = backendStrategy.id;
         return {
-            id: typeof backendStrategy.id === 'string'
-                ? (parseInt(backendStrategy.id) || backendStrategy.id as any)
-                : backendStrategy.id,
+            id: typeof rawId === 'string' ? (parseInt(rawId) || Math.abs(rawId.split('').reduce((a: number, c: string) => (a << 5) - a + c.charCodeAt(0), 0))) : rawId,
+            originalId: typeof rawId === 'string' ? rawId : String(rawId),
             name: backendStrategy.name,
             description: backendStrategy.description || '',
             symbol: backendStrategy.symbol,

@@ -150,7 +150,9 @@ export default function Strategies() {
     const handleDeleteStrategy = async (id: number) => {
         try {
             setGlobalLoading(true, 'Deleting strategy...');
-            await strategyService.deleteStrategy(id);
+            const strategyData = strategies.find(s => s.id === id);
+            const originalId = (strategyData as any)?.originalId || id.toString();
+            await strategyService.deleteStrategy(id, originalId);
             setConfirmDeleteId(null);
             showSuccess('Strategy deleted');
             await fetchStrategies();
