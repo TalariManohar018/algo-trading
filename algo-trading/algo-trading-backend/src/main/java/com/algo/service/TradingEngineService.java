@@ -1,6 +1,7 @@
 package com.algo.service;
 
 import com.algo.dto.CandleData;
+import com.algo.dto.QueuedOrder;
 import com.algo.enums.EngineStatus;
 import com.algo.enums.OrderSide;
 import com.algo.enums.OrderStatus;
@@ -10,7 +11,7 @@ import com.algo.model.*;
 import com.algo.repository.*;
 import com.algo.service.broker.BrokerService;
 import com.algo.service.broker.OrderStatusResponse;
-import com.algo.service.engine.StrategyEvaluator;
+import com.algo.service.engine.*;
 import com.algo.service.market.MarketDataService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -42,7 +43,16 @@ public class TradingEngineService {
     private final RiskManagementService riskManagementService;
     private final AuditService auditService;
     private final EngineStateRepository engineStateRepository;
-    
+
+    // ── Production services (injected) ───────────────────────────────────────
+    private final OrderExecutionQueue orderExecutionQueue;
+    private final DailyRiskEngine dailyRiskEngine;
+    private final SlippageProtectionService slippageProtectionService;
+    private final RealTimeMtmService realTimeMtmService;
+    private final PriceCacheService priceCacheService;
+
+    // signal timestamps: strategyId → last signal time
+    private final Map<Long, LocalDateTime> signalTimestamps = new HashMap<>();
     private final Map<Long, Integer> dailyTradeCount = new HashMap<>();
     private volatile EngineStatus engineStatus = EngineStatus.STOPPED;
     private volatile Long currentUserId = null;
@@ -74,6 +84,9 @@ public class TradingEngineService {
         
         // Subscribe to candle-close events
         marketDataService.subscribeToCandleClose(this::onCandleClose);
+
+        // Clear dedup keys at start of engine
+        orderExecutionQueue.clearLocalDedupForNewCandle();
         
         // Update engine state in database
         EngineState engineState = engineStateRepository.findByUserId(userId)
@@ -207,6 +220,13 @@ public class TradingEngineService {
                 evaluateStrategy(currentUserId, strategy, candle);
             }
             
+            // Feed MTM + price cache on every tick
+            realTimeMtmService.onTick(candle.getSymbol(), candle.getClose());
+            priceCacheService.setPrice(candle.getSymbol(), candle.getClose());
+
+            // Clear per-candle dedup on new candle close
+            orderExecutionQueue.clearLocalDedupForNewCandle();
+
             // Update last tick time
             engineStateRepository.findByUserId(currentUserId).ifPresent(engineState -> {
                 engineState.setLastTickAt(LocalDateTime.now());
@@ -271,9 +291,10 @@ public class TradingEngineService {
                 // Evaluate entry conditions
                 if (strategyEvaluator.evaluateEntryConditions(strategy.getEntryConditions(), candle)) {
                     log.info("✅ ENTRY signal for strategy {} at {}", strategy.getName(), candle.getClose());
-                    auditService.logInfo(userId, "SIGNAL", 
+                    auditService.logInfo(userId, "SIGNAL",
                             "ENTRY signal for " + strategy.getName(), Map.of("price", candle.getClose()));
-                    
+
+                    signalTimestamps.put(strategy.getId(), LocalDateTime.now());
                     enterPosition(userId, strategy, candle.getClose());
                 }
             }
@@ -284,21 +305,54 @@ public class TradingEngineService {
     }
     
     /**
-     * Enter a new position
+     * Enter a new position — routes order through the production pipeline:
+     * slippageCheck → riskCheck → queue.enqueue() → (async) OrderQueueWorker
      */
     private void enterPosition(Long userId, Strategy strategy, double currentPrice) {
         try {
-            // Check risk limits before placing order
-            double orderValue = strategy.getQuantity() * currentPrice;
-            RiskManagementService.RiskCheckResult riskCheck = riskManagementService.checkRiskLimits(userId, orderValue);
-            if (!riskCheck.isPassed()) {
-                log.warn("Risk check failed for strategy {}: {}", strategy.getName(), riskCheck.getReason());
-                auditService.logWarning(userId, "RISK", "Trade blocked by risk limits: " + riskCheck.getReason(), null);
+            LocalDateTime signalTime = signalTimestamps.getOrDefault(strategy.getId(), LocalDateTime.now());
+
+            // ── 1. Slippage viability check ──────────────────────────────────
+            SlippageProtectionService.SlippageDecision slippage = slippageProtectionService.check(
+                    strategy.getId(), strategy.getSymbol(), OrderSide.BUY,
+                    currentPrice, strategy.getQuantity(), signalTime);
+
+            if (!slippage.isViable()) {
+                log.warn("[ENGINE] Slippage rejected for strategy {}: {}",
+                        strategy.getName(), slippage.getRejectionReason());
+                auditService.logWarning(userId, "SLIPPAGE_REJECTED",
+                        "Trade blocked by slippage protection: " + slippage.getRejectionReason(),
+                        Map.of("strategy", strategy.getName(), "symbol", strategy.getSymbol()));
                 return;
             }
-            
-            // Create order
-            Order order = Order.builder()
+
+            // ── 2. Daily risk check ──────────────────────────────────────────
+            DailyRiskEngine.RiskDecision riskDecision = dailyRiskEngine.checkOrder(
+                    userId, strategy.getId(), strategy.getSymbol(),
+                    strategy.getQuantity(), currentPrice, OrderSide.BUY);
+
+            if (!riskDecision.isPassed()) {
+                log.warn("[ENGINE] Risk check failed for strategy {}: {}",
+                        strategy.getName(), riskDecision.getReason());
+                auditService.logWarning(userId, "RISK_REJECTED",
+                        "Trade blocked by risk engine: " + riskDecision.getReason(),
+                        Map.of("strategy", strategy.getName()));
+                return;
+            }
+
+            // ── 3. Build SL / TP ─────────────────────────────────────────────
+            Double stopLoss   = (strategy.getRiskConfig() != null && strategy.getRiskConfig().getStopLossPercent() != null)
+                    ? currentPrice * (1 - strategy.getRiskConfig().getStopLossPercent() / 100) : null;
+            Double takeProfit = (strategy.getRiskConfig() != null && strategy.getRiskConfig().getTakeProfitPercent() != null)
+                    ? currentPrice * (1 + strategy.getRiskConfig().getTakeProfitPercent() / 100) : null;
+
+            // ── 4. Build dedup key ───────────────────────────────────────────
+            long minuteEpoch = java.time.Instant.now().getEpochSecond() / 60;
+            String dedupKey  = userId + ":" + strategy.getId() + ":" + strategy.getSymbol()
+                    + ":BUY:" + minuteEpoch;
+
+            // ── 5. Enqueue ───────────────────────────────────────────────────
+            QueuedOrder queuedOrder = QueuedOrder.builder()
                     .userId(userId)
                     .strategyId(strategy.getId())
                     .strategyName(strategy.getName())
@@ -306,56 +360,34 @@ public class TradingEngineService {
                     .side(OrderSide.BUY)
                     .quantity(strategy.getQuantity())
                     .orderType(strategy.getOrderType())
-                    .status(OrderStatus.CREATED)
-                    .createdAt(LocalDateTime.now())
+                    .signalPrice(currentPrice)
+                    .signalTime(signalTime)
+                    .deduplicationKey(dedupKey)
+                    .stopLoss(stopLoss)
+                    .takeProfit(takeProfit)
+                    .estimatedSlippagePct(slippage.getEstimatedSlippagePct())
+                    .priority(1)
                     .build();
-            
-            order = orderRepository.save(order);
-            
-            auditService.logInfo(userId, "ORDER", "Order created: " + order.getSymbol(), 
-                    Map.of("orderId", order.getId(), "side", "BUY", "quantity", strategy.getQuantity()));
-            
-            // Place order with broker
-            String brokerOrderId = brokerService.placeOrder(order);
-            order.setStatus(OrderStatus.PLACED);
-            order.setPlacedAt(LocalDateTime.now());
-            order.setPlacedPrice(currentPrice);
-            order = orderRepository.save(order);
-            
-            // Check order status
-            OrderStatusResponse brokerStatus = brokerService.getOrderStatus(brokerOrderId);
-            
-            if (brokerStatus.getStatus() == OrderStatus.FILLED) {
-                order.setStatus(OrderStatus.FILLED);
-                order.setFilledPrice(brokerStatus.getFilledPrice());
-                order.setFilledAt(LocalDateTime.now());
-                orderRepository.save(order);
-                
-                auditService.logInfo(userId, "ORDER", "Order filled: " + order.getSymbol(), 
-                        Map.of("orderId", order.getId(), "price", brokerStatus.getFilledPrice()));
-                
-                // Create position
-                createPosition(userId, strategy, order, brokerStatus.getFilledPrice());
-                
-                // Increment trade count
-                dailyTradeCount.put(strategy.getId(), 
-                        dailyTradeCount.getOrDefault(strategy.getId(), 0) + 1);
-                
-                // Update risk state
-                riskManagementService.updateAfterTrade(userId, 0.0);  // Entry, no P&L yet
-                
-            } else if (brokerStatus.getStatus() == OrderStatus.REJECTED) {
-                order.setStatus(OrderStatus.REJECTED);
-                order.setRejectedReason(brokerStatus.getMessage());
-                orderRepository.save(order);
-                
-                auditService.logWarning(userId, "ORDER", "Order rejected: " + brokerStatus.getMessage(), 
-                        Map.of("orderId", order.getId()));
+
+            boolean accepted = orderExecutionQueue.enqueue(queuedOrder);
+            if (!accepted) {
+                log.warn("[ENGINE] Order rejected by execution queue (dedup/rate-limit/full): strategy={}",
+                        strategy.getName());
+                return;
             }
-            
+
+            // Increment local trade count (will be persisted by DailyRiskEngine.recordOrderFilled)
+            dailyTradeCount.put(strategy.getId(),
+                    dailyTradeCount.getOrDefault(strategy.getId(), 0) + 1);
+
+            log.info("[ENGINE] \u2705 Order enqueued: {} {} qty={} price=₹{:.2f} slippage={:.3f}%",
+                    strategy.getSymbol(), strategy.getName(), strategy.getQuantity(),
+                    currentPrice, slippage.getEstimatedSlippagePct());
+
         } catch (Exception e) {
-            log.error("Error entering position: {}", e.getMessage(), e);
-            auditService.logError(userId, "ORDER", "Error placing order: " + e.getMessage(), null);
+            log.error("[ENGINE] Error entering position for strategy {}: {}",
+                    strategy.getName(), e.getMessage(), e);
+            auditService.logError(userId, "ORDER", "Error entering position: " + e.getMessage(), null);
         }
     }
     

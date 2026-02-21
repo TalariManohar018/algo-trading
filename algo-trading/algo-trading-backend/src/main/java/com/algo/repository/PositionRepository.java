@@ -13,4 +13,6 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
     List<Position> findByUserIdAndStatus(Long userId, PositionStatus status);
     List<Position> findByStrategyIdAndStatus(Long strategyId, PositionStatus status);
     List<Position> findByUserIdAndStrategyIdAndStatus(Long userId, Long strategyId, PositionStatus status);
+    List<Position> findBySymbolAndStatus(String symbol, PositionStatus status);
+    List<Position> findByUserIdAndSymbolAndStatus(Long userId, String symbol, PositionStatus status);
 }

@@ -12,4 +12,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByUserIdOrderByCreatedAtDesc(Long userId);
     List<Order> findByUserIdAndStatus(Long userId, OrderStatus status);
     List<Order> findByStrategyId(Long strategyId);
+    List<Order> findByStatusIn(List<OrderStatus> statuses);
+    List<Order> findByUserIdAndStatusIn(Long userId, List<OrderStatus> statuses);
+    boolean existsByDeduplicationKey(String deduplicationKey);
 }

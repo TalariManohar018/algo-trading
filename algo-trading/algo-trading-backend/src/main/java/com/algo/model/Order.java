@@ -64,4 +64,49 @@ public class Order {
     private LocalDateTime filledAt;
     
     private String rejectedReason;
+
+    // ── Production fields ──────────────────────────────────────────────
+
+    /** Broker-assigned order ID returned on placement */
+    @Column(length = 64)
+    private String brokerOrderId;
+
+    /** How many shares were actually filled (supports partial fills) */
+    @Column(nullable = false)
+    private Integer filledQuantity = 0;
+
+    /** Deduplication key: userId:strategyId:symbol:side:minuteEpoch */
+    @Column(length = 128, unique = true)
+    private String deduplicationKey;
+
+    /** Number of broker placement retries attempted */
+    @Column(nullable = false)
+    private Integer retryCount = 0;
+
+    /** Max retries allowed for this order */
+    @Column(nullable = false)
+    private Integer maxRetries = 3;
+
+    /** Actual slippage vs reference price (%) */
+    private Double slippageActualPct;
+
+    /** Expected slippage at signal time (%) */
+    private Double slippageExpectedPct;
+
+    /** Whether slippage check caused rejection */
+    @Column(nullable = false)
+    private Boolean slippageRejected = false;
+
+    /** Timestamp when order was enqueued for execution */
+    private LocalDateTime queuedAt;
+
+    /** Timestamp when order was cancelled (stale / manual) */
+    private LocalDateTime cancelledAt;
+
+    /** Last time this order was checked against broker */
+    private LocalDateTime lastReconciledAt;
+
+    /** Reconciliation mismatch notes */
+    @Column(columnDefinition = "TEXT")
+    private String reconciliationNotes;
 }
