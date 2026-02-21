@@ -25,7 +25,8 @@ export interface Condition {
 class StrategyService {
     async getAllStrategies(_search?: string): Promise<Strategy[]> {
         try {
-            const strategies = await apiClient.getStrategies();
+            const response = await apiClient.getStrategies();
+            const strategies = response.data || response;
             return strategies.map(this.mapBackendToFrontend.bind(this));
         } catch (error) {
             console.error('Failed to fetch strategies from backend:', error);
@@ -138,23 +139,45 @@ class StrategyService {
     }
 
     private mapBackendToFrontend(backendStrategy: any): Strategy {
+        // parameters is stored as a JSON string in the backend
+        let parsedParams: any = {};
+        try {
+            if (typeof backendStrategy.parameters === 'string') {
+                parsedParams = JSON.parse(backendStrategy.parameters);
+            } else if (backendStrategy.parameters && typeof backendStrategy.parameters === 'object') {
+                parsedParams = backendStrategy.parameters;
+            }
+        } catch { /* ignore */ }
+
+        // Combine entry and exit conditions from parameters
+        const entryConditions = (parsedParams.entryConditions || []).map((c: any) => ({
+            id: typeof c.id === 'number' ? c.id : parseInt(c.id) || 0,
+            type: 'ENTRY',
+            indicator: c.indicatorType,
+            operator: c.conditionType,
+            value: c.value
+        }));
+        const exitConditions = (parsedParams.exitConditions || []).map((c: any) => ({
+            id: typeof c.id === 'number' ? c.id : parseInt(c.id) || 0,
+            type: 'EXIT',
+            indicator: c.indicatorType,
+            operator: c.conditionType,
+            value: c.value
+        }));
+
         return {
-            id: backendStrategy.id,
+            id: typeof backendStrategy.id === 'string'
+                ? (parseInt(backendStrategy.id) || backendStrategy.id as any)
+                : backendStrategy.id,
             name: backendStrategy.name,
             description: backendStrategy.description || '',
             symbol: backendStrategy.symbol,
-            instrumentType: backendStrategy.instrumentType,
+            instrumentType: backendStrategy.instrumentType || parsedParams.instrumentType || 'FUTURE',
             status: this.mapStatus(backendStrategy.status),
             createdAt: backendStrategy.createdAt || new Date().toISOString(),
             updatedAt: backendStrategy.updatedAt || new Date().toISOString(),
-            conditions: (backendStrategy.conditions || []).map((c: any) => ({
-                id: c.id,
-                type: 'ENTRY',
-                indicator: c.indicatorType,
-                operator: c.conditionType,
-                value: c.value
-            })),
-            parameters: {}
+            conditions: [...entryConditions, ...exitConditions],
+            parameters: parsedParams
         };
     }
 

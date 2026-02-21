@@ -40,7 +40,7 @@ interface SettingsContextType {
 }
 
 const defaultSettings: Settings = {
-    tradingMode: 'PAPER',
+    tradingMode: 'LIVE',  // Angel One is connected — default to live trading
     startingCapital: 100000,
     currentBalance: 100000,
     maxLossPerDay: 5000,

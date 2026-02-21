@@ -1,6 +1,13 @@
 import { API_BASE_URL, API_ENDPOINTS } from './config';
 import { ExecutableStrategy } from '../types/strategy';
 
+/** Unwrap backend envelope: { success, data } → data, or return array directly */
+function unwrap<T>(result: any, fallback: T): T {
+    if (Array.isArray(result)) return result as unknown as T;
+    if (result && result.data !== undefined) return result.data as T;
+    return fallback;
+}
+
 export const strategyApi = {
     // Get all strategies
     getAllStrategies: async (search?: string): Promise<ExecutableStrategy[]> => {
@@ -10,14 +17,16 @@ export const strategyApi = {
 
         const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to fetch strategies');
-        return response.json();
+        const result = await response.json();
+        return unwrap<ExecutableStrategy[]>(result, []);
     },
 
     // Get strategy by ID
-    getStrategyById: async (id: number): Promise<ExecutableStrategy> => {
+    getStrategyById: async (id: number | string): Promise<ExecutableStrategy> => {
         const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.STRATEGIES}/${id}`);
         if (!response.ok) throw new Error('Failed to fetch strategy');
-        return response.json();
+        const result = await response.json();
+        return unwrap<ExecutableStrategy>(result, result);
     },
 
     // Create strategy
@@ -33,7 +42,8 @@ export const strategyApi = {
             const error = await response.text();
             throw new Error(error || 'Failed to create strategy');
         }
-        return response.json();
+        const result = await response.json();
+        return unwrap<ExecutableStrategy>(result, result);
     },
 
     // Activate strategy — also starts it in the backend execution engine
@@ -48,9 +58,11 @@ export const strategyApi = {
                 method: 'PUT',
             });
             if (!response.ok) throw new Error('Failed to activate strategy');
-            return response.json();
+            const result = await response.json();
+            return unwrap<ExecutableStrategy>(result, result);
         }
-        return engineRes.json();
+        const result = await engineRes.json();
+        return unwrap<ExecutableStrategy>(result, result);
     },
 
     // Deactivate strategy — also stops it in the backend execution engine
@@ -65,9 +77,11 @@ export const strategyApi = {
                 method: 'PUT',
             });
             if (!response.ok) throw new Error('Failed to deactivate strategy');
-            return response.json();
+            const result = await response.json();
+            return unwrap<ExecutableStrategy>(result, result);
         }
-        return engineRes.json();
+        const result = await engineRes.json();
+        return unwrap<ExecutableStrategy>(result, result);
     },
 
     // Update strategy status
@@ -76,7 +90,8 @@ export const strategyApi = {
             method: 'PUT',
         });
         if (!response.ok) throw new Error('Failed to update strategy status');
-        return response.json();
+        const result = await response.json();
+        return unwrap<ExecutableStrategy>(result, result);
     },
 
     // Delete strategy

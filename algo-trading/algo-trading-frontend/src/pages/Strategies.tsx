@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Eye, Activity } from 'lucide-react';
+import { Plus, Search, Eye, Activity, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Strategy, strategyService } from '../services/strategyService';
 import StrategyDetailsModal from '../components/StrategyDetailsModal';
@@ -21,6 +21,7 @@ export default function Strategies() {
     const [filterStatus, setFilterStatus] = useState<'All' | 'CREATED' | 'RUNNING' | 'STOPPED' | 'ERROR'>('All');
     const [filterInstrument, setFilterInstrument] = useState<'All' | 'OPTION' | 'FUTURE'>('All');
     const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
     useEffect(() => {
         fetchStrategies();
@@ -34,44 +35,8 @@ export default function Strategies() {
     const fetchStrategies = async () => {
         try {
             setLoading(true);
-            // Use paper trading strategies from context
-            const paperStrategies = tradingContext.strategies.map((s, index) => {
-                // Extract numeric ID from string ID like "STR-DEMO-1" or "STR-1"
-                const idParts = s.id.split('-');
-                const numericId = parseInt(idParts[idParts.length - 1]) || (index + 1);
-
-                // Combine entry and exit conditions for UI
-                const entryConditions = (s.entryConditions || []).map((c, i) => ({
-                    id: i,
-                    type: c.indicatorType,
-                    indicator: c.indicatorType,
-                    operator: c.conditionType,
-                    value: c.value,
-                }));
-
-                const exitConditions = (s.exitConditions || []).map((c, i) => ({
-                    id: entryConditions.length + i,
-                    type: c.indicatorType,
-                    indicator: c.indicatorType,
-                    operator: c.conditionType,
-                    value: c.value,
-                }));
-
-                return {
-                    id: numericId,
-                    name: s.name || 'Unnamed Strategy',
-                    description: s.description || '',
-                    symbol: s.symbol || '',
-                    instrumentType: s.instrumentType || 'OPTION',
-                    timeframe: s.timeframe || 'ONE_MINUTE',
-                    status: s.status || 'CREATED',
-                    createdAt: s.createdAt || new Date(),
-                    updatedAt: s.updatedAt || new Date(),
-                    conditions: [...entryConditions, ...exitConditions],
-                    originalId: s.id, // Keep original ID for lookups
-                };
-            });
-            setStrategies(paperStrategies as any);
+            const backendStrategies = await strategyService.getAllStrategies(searchTerm || undefined);
+            setStrategies(backendStrategies);
         } catch (error) {
             showError(error instanceof Error ? error.message : 'Failed to fetch strategies');
         } finally {
@@ -186,11 +151,14 @@ export default function Strategies() {
         try {
             setGlobalLoading(true, 'Deleting strategy...');
             await strategyService.deleteStrategy(id);
+            setConfirmDeleteId(null);
+            showSuccess('Strategy deleted');
             await fetchStrategies();
             setGlobalLoading(false);
         } catch (error) {
             setGlobalLoading(false);
-            showError(error instanceof Error ? error.message : 'Failed to delete strategy');
+            setConfirmDeleteId(null);
+            showError(error instanceof Error ? error.message : 'Failed to delete strategy. Running strategies must be stopped first.');
         }
     };
 
@@ -328,13 +296,40 @@ export default function Strategies() {
                                 <span>{new Date(strategy.updatedAt).toLocaleDateString('en-IN')}</span>
                             </div>
 
-                            <button
-                                onClick={() => setSelectedStrategy(strategy)}
-                                className="btn-secondary w-full justify-center btn-sm"
-                            >
-                                <Eye className="h-3.5 w-3.5" />
-                                View Details
-                            </button>
+                            {confirmDeleteId === strategy.id ? (
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => handleDeleteStrategy(strategy.id!)}
+                                        className="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
+                                    >
+                                        Confirm Delete
+                                    </button>
+                                    <button
+                                        onClick={() => setConfirmDeleteId(null)}
+                                        className="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setSelectedStrategy(strategy)}
+                                        className="btn-secondary flex-1 justify-center btn-sm"
+                                    >
+                                        <Eye className="h-3.5 w-3.5" />
+                                        View Details
+                                    </button>
+                                    <button
+                                        onClick={() => setConfirmDeleteId(strategy.id!)}
+                                        disabled={strategy.status === 'RUNNING'}
+                                        title={strategy.status === 'RUNNING' ? 'Stop the strategy before deleting' : 'Delete strategy'}
+                                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

@@ -15,6 +15,7 @@ import prisma from '../config/database';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 import { CandleInput } from '../strategies/indicators';
+import { getBrokerInstance } from '../engine/brokerFactory';
 
 export interface TickData {
     symbol: string;
@@ -42,6 +43,7 @@ export class MarketDataService extends EventEmitter {
     private maxReconnectAttempts = 10;
     private reconnectTimer: NodeJS.Timeout | null = null;
     private simulationTimer: NodeJS.Timeout | null = null;
+    private candleCloseTimer: NodeJS.Timeout | null = null;
     private subscribedSymbols = new Set<string>();
     private running = false;
 
@@ -58,6 +60,9 @@ export class MarketDataService extends EventEmitter {
 
         if (env.TRADING_MODE === 'live' && env.KITE_ACCESS_TOKEN) {
             this.connectWebSocket();
+        } else if (env.TRADING_MODE === 'live') {
+            // Angel One live pricing via LTP polling
+            this.startAngelOneLiveData();
         } else {
             this.startSimulation();
         }
@@ -77,6 +82,10 @@ export class MarketDataService extends EventEmitter {
         if (this.simulationTimer) {
             clearInterval(this.simulationTimer);
             this.simulationTimer = null;
+        }
+        if (this.candleCloseTimer) {
+            clearInterval(this.candleCloseTimer);
+            this.candleCloseTimer = null;
         }
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
@@ -204,6 +213,54 @@ export class MarketDataService extends EventEmitter {
             .filter(Boolean);
     }
 
+    // ─── ANGEL ONE LIVE DATA (Production) ────────────────────
+
+    /**
+     * Poll Angel One LTP API every 5 seconds for real prices.
+     * This replaces the Zerodha WebSocket when Angel One is the active broker.
+     */
+    private startAngelOneLiveData() {
+        // Seed realistic base prices (used until first successful poll)
+        const basePrices: Record<string, number> = {
+            NIFTY: 22450, BANKNIFTY: 48200, RELIANCE: 2480,
+            TCS: 3920, INFY: 1570, HDFCBANK: 1640, ICICIBANK: 1060,
+        };
+        this.subscribedSymbols.forEach((s) => {
+            if (!this.latestPrices.has(s)) this.latestPrices.set(s, basePrices[s] || 1000);
+        });
+
+        // Poll live prices every 5 seconds (well within Angel One rate limit)
+        this.simulationTimer = setInterval(async () => {
+            if (!this.running) return;
+            const broker = getBrokerInstance();
+            if (!broker.isConnected()) {
+                logger.debug('Broker not connected — skipping live price poll');
+                return;
+            }
+            for (const symbol of this.subscribedSymbols) {
+                try {
+                    const price = await broker.getCurrentPrice(symbol, 'NSE');
+                    const tick: TickData = {
+                        symbol,
+                        exchange: 'NSE',
+                        lastPrice: price,
+                        volume: 0,
+                        timestamp: new Date(),
+                    };
+                    this.onTick(tick);
+                } catch (err: any) {
+                    // Non-fatal: just log and continue (stale price is used)
+                    logger.debug(`Live price poll failed for ${symbol}: ${err.message}`);
+                }
+            }
+        }, 5000);
+
+        // Close 1-minute candles on exact minute boundaries
+        this.candleCloseTimer = setInterval(() => this.closeMinuteCandles(), 60000);
+
+        logger.info('Angel One live price polling started (5s interval)');
+    }
+
     // ─── SIMULATION (Paper Trading) ───────────────────────────
 
     private startSimulation() {
@@ -246,7 +303,7 @@ export class MarketDataService extends EventEmitter {
         }, 2000);
 
         // Close candles every minute
-        setInterval(() => this.closeMinuteCandles(), 60000);
+        this.candleCloseTimer = setInterval(() => this.closeMinuteCandles(), 60000);
 
         logger.info('Market data simulation started');
     }

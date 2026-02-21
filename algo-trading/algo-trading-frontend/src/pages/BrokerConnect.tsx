@@ -24,10 +24,10 @@ export default function BrokerConnect() {
     const [showForm, setShowForm] = useState(false);
     const [showPasswords, setShowPasswords] = useState(false);
     const [creds, setCreds] = useState<BrokerLoginRequest>({
-        apiKey: '',
-        clientId: '',
-        password: '',
-        totpSecret: '',
+        apiKey: 'ZCY4aQqq',
+        clientId: 'M58390557',
+        password: '0000',
+        totpSecret: 'VD2C2KAREYVX4RNOWZ24STCFVA',
         liveTotp: '',
     });
 

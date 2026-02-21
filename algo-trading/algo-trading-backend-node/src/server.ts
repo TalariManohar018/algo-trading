@@ -14,6 +14,7 @@ import { executionEngine } from './engine/executionEngine';
 import { autoConnectBroker } from './engine/brokerFactory';
 import { tradingWS } from './websocket/wsServer';
 import http from 'http';
+import cron from 'node-cron';
 
 const PORT = env.PORT;
 
@@ -88,6 +89,42 @@ async function main() {
 ║      WS:   ws://localhost:${String(PORT).padEnd(24)}║
 ╚══════════════════════════════════════════════════╝`);
     });
+
+    // 7. Auto square-off scheduler (live trading safety — IST timezone)
+    if (env.TRADING_MODE === 'live') {
+        // 3:20 PM IST — square off ALL open positions (MIS must close before 3:30)
+        cron.schedule('20 15 * * 1-5', async () => {
+            logger.warn('⏰ AUTO SQUARE-OFF triggered (3:20 PM IST) — closing all open positions');
+            try {
+                const result = await executionEngine.emergencyStop();
+                logger.warn('Auto square-off complete', result);
+            } catch (err: any) {
+                logger.error('Auto square-off failed', { error: err.message });
+            }
+        }, { timezone: 'Asia/Kolkata' });
+
+        // 3:30 PM IST — stop execution engine at market close
+        cron.schedule('30 15 * * 1-5', async () => {
+            logger.info('🔔 Market close (3:30 PM IST) — stopping execution engine');
+            try {
+                await executionEngine.stop();
+            } catch (err: any) {
+                logger.error('Engine stop at market close failed', { error: err.message });
+            }
+        }, { timezone: 'Asia/Kolkata' });
+
+        // 9:00 AM IST — pre-market: re-start execution engine on trading days
+        cron.schedule('0 9 * * 1-5', async () => {
+            logger.info('🌅 Pre-market (9:00 AM IST) — starting execution engine');
+            try {
+                await executionEngine.start();
+            } catch (err: any) {
+                logger.error('Engine pre-market start failed', { error: err.message });
+            }
+        }, { timezone: 'Asia/Kolkata' });
+
+        logger.info('📅 Live trading scheduler active: auto-squareoff 3:20 PM, engine-stop 3:30 PM, engine-start 9:00 AM (Mon-Fri IST)');
+    }
 
     // 7. Graceful shutdown
     const shutdown = async (signal: string) => {

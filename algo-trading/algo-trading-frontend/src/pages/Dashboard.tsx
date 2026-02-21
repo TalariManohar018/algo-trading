@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Play, Square, AlertCircle, Info, CheckCircle } from 'lucide-react';
-import { Strategy } from '../services/strategyService';
+import { Strategy, strategyService } from '../services/strategyService';
 import { tradingEngine } from '../services/tradingEngine';
 import { useTradingContext } from '../context/TradingContext';
 import { useError } from '../context/ErrorContext';
@@ -134,37 +133,8 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            // Use strategies from TradingContext (paper trading) and map to UI format
-            const mappedStrategies = tradingContext.strategies.map((s, index) => {
-                // Extract numeric ID from string ID like "STR-DEMO-1" or "STR-1"
-                const idParts = s.id.split('-');
-                const numericId = parseInt(idParts[idParts.length - 1]) || (index + 1);
-
-                // Combine entry and exit conditions for UI
-                const entryConditions = (s.entryConditions || []).map((c, i) => ({
-                    id: i,
-                    type: c.indicatorType,
-                    indicator: c.indicatorType,
-                    operator: c.conditionType,
-                    value: c.value,
-                }));
-
-                const exitConditions = (s.exitConditions || []).map((c, i) => ({
-                    id: entryConditions.length + i,
-                    type: c.indicatorType,
-                    indicator: c.indicatorType,
-                    operator: c.conditionType,
-                    value: c.value,
-                }));
-
-                return {
-                    ...s,
-                    id: numericId,
-                    conditions: [...entryConditions, ...exitConditions],
-                    originalId: s.id, // Keep original ID for lookups
-                } as any;
-            });
-            setStrategies(mappedStrategies);
+            const backendStrategies = await strategyService.getAllStrategies();
+            setStrategies(backendStrategies);
         } catch (error) {
             showError(error instanceof Error ? error.message : 'Error fetching dashboard data');
         } finally {

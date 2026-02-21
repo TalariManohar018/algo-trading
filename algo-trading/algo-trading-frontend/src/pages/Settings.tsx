@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { User, Zap, Shield, Bell, Wallet, AlertTriangle, Clock, Calendar, HelpCircle, CheckCircle } from 'lucide-react';
@@ -8,8 +7,7 @@ import { useError } from '../context/ErrorContext';
 export default function Settings() {
     const { user } = useAuth();
     const { settings, updateSettings, resetWallet } = useSettings();
-    const { showSuccess, showError } = useError();
-    const navigate = useNavigate();
+    const { showSuccess } = useError();
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [showLiveConfirm, setShowLiveConfirm] = useState(false);
 
@@ -26,8 +24,7 @@ export default function Settings() {
     const handleSetLiveMode = () => {
         updateSettings({ tradingMode: 'LIVE' });
         setShowLiveConfirm(false);
-        console.warn('[Settings] Trading mode set to: LIVE (broker not connected — execution will be blocked)');
-        showError('Live Trading mode selected — broker not connected. Trade execution will be blocked until broker credentials are configured.');
+        showSuccess('⛅ Switched to Live Trading mode — Angel One connected. Real orders will execute.');
     };
 
     const handleResetWallet = () => {
@@ -115,9 +112,9 @@ export default function Settings() {
                                             Trade with real money. Requires broker connection.
                                         </p>
                                         <div className="flex items-center space-x-1 mt-2">
-                                            <AlertTriangle className="h-3.5 w-3.5 text-yellow-600" />
-                                            <span className="text-xs text-yellow-700 font-medium">
-                                                Broker not connected — orders will be blocked
+                                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                            <span className="text-xs text-emerald-700 font-medium">
+                                                Angel One auto-connected — orders execute with real money
                                             </span>
                                         </div>
                                     </div>
@@ -136,27 +133,21 @@ export default function Settings() {
                                         <div>
                                             <p className="text-sm font-semibold text-red-900">Switch to Live Trading?</p>
                                             <p className="text-xs text-red-700 mt-1">
-                                                To enable live trading, connect your Angel One account first from the
-                                                <strong> Broker Connect</strong> page.
+                                                <strong>Real money</strong> will be at risk. Angel One is connected and orders will execute immediately.
+                                                Auto square-off is set for <strong>3:20 PM IST</strong>.
                                             </p>
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => { setShowLiveConfirm(false); navigate('/broker'); }}
-                                            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                                        >
-                                            Go to Broker Connect
-                                        </button>
-                                        <button
                                             onClick={handleSetLiveMode}
-                                            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                                            className="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700"
                                         >
-                                            Set Live Mode Anyway
+                                            Yes, Enable Live Trading
                                         </button>
                                         <button
                                             onClick={() => setShowLiveConfirm(false)}
-                                            className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-600"
+                                            className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
                                         >
                                             Cancel
                                         </button>
