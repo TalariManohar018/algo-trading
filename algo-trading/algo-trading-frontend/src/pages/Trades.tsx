@@ -1,9 +1,37 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, TrendingDown, BarChart3, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
-import { useTradingContext } from '../context/TradingContext';
 
 type SortKey = 'pnl' | 'executedAt' | 'entryPrice' | 'quantity' | 'symbol';
 type SortDir = 'asc' | 'desc';
+
+interface BackendTrade {
+    id: string;
+    userId: string;
+    strategyId: string | null;
+    symbol: string;
+    side: string;
+    quantity: number;
+    entryPrice: number;
+    exitPrice: number;
+    pnl: number;
+    pnlPercent: number;
+    entryTime: string;
+    exitTime: string;
+    duration: number;
+}
+
+interface Trade {
+    id: string;
+    strategyId: string;
+    strategyName: string;
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    quantity: number;
+    entryPrice: number;
+    exitPrice: number;
+    pnl: number;
+    executedAt: Date;
+}
 
 function PnlCell({ pnl, entryPrice, qty }: { pnl: number; entryPrice: number; qty: number }) {
     const pct = entryPrice && qty ? ((pnl / (entryPrice * qty)) * 100) : 0;
@@ -26,10 +54,46 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
 }
 
 export default function Trades() {
-    const tradingContext = useTradingContext();
+    const [trades, setTrades] = useState<Trade[]>([]);
+    const [loading, setLoading] = useState(true);
     const [filterSide, setFilterSide] = useState<'All' | 'BUY' | 'SELL'>('All');
     const [sortKey, setSortKey] = useState<SortKey>('executedAt');
     const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+    useEffect(() => {
+        fetchTrades();
+    }, []);
+
+    const fetchTrades = async () => {
+        try {
+            const response = await fetch('http://localhost:3001/api/trades', {
+                credentials: 'include',
+            });
+            if (!response.ok) throw new Error('Failed to fetch trades');
+            const result = await response.json();
+            const backendTrades: BackendTrade[] = result.data?.trades || result.data || [];
+            
+            // Transform backend trades to frontend format
+            const transformedTrades: Trade[] = backendTrades.map(t => ({
+                id: t.id,
+                strategyId: t.strategyId || 'manual',
+                strategyName: t.strategyId || 'Manual Trade',
+                symbol: t.symbol,
+                side: t.side as 'BUY' | 'SELL',
+                quantity: t.quantity,
+                entryPrice: t.entryPrice,
+                exitPrice: t.exitPrice,
+                pnl: t.pnl,
+                executedAt: new Date(t.exitTime),
+            }));
+            
+            setTrades(transformedTrades);
+        } catch (error) {
+            console.error('Error fetching trades:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -37,10 +101,10 @@ export default function Trades() {
     };
 
     const filteredTrades = useMemo(() => {
-        let trades = tradingContext.trades.filter(t =>
+        let filtered = trades.filter(t =>
             filterSide === 'All' || t.side === filterSide
         );
-        trades = [...trades].sort((a, b) => {
+        filtered = [...filtered].sort((a, b) => {
             let av: any, bv: any;
             switch (sortKey) {
                 case 'pnl': av = a.pnl; bv = b.pnl; break;
@@ -51,8 +115,8 @@ export default function Trades() {
             }
             return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
         });
-        return trades;
-    }, [tradingContext.trades, filterSide, sortKey, sortDir]);
+        return filtered;
+    }, [trades, filterSide, sortKey, sortDir]);
 
     const totalPnL = filteredTrades.reduce((s, t) => s + t.pnl, 0);
     const winning = filteredTrades.filter(t => t.pnl > 0).length;
