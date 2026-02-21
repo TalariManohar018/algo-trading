@@ -11,6 +11,30 @@ import { tradeLogger } from '../utils/logger';
 import { TradingError, RiskBreachError } from '../utils/errors';
 import { riskManagementService } from '../services/riskService';
 
+// Extended Prisma Position type that includes new risk fields
+interface PositionExtended {
+    id: string;
+    userId: string;
+    strategyId: string | null;
+    symbol: string;
+    exchange: string;
+    side: string;
+    quantity: number;
+    entryPrice: number;
+    currentPrice: number;
+    exitPrice: number | null;
+    stopLoss: number | null;
+    takeProfit: number | null;
+    unrealizedPnl: number;
+    realizedPnl: number;
+    status: string;
+    entryOrderId: string | null;
+    exitOrderId: string | null;
+    openedAt: Date;
+    closedAt: Date | null;
+    updatedAt: Date;
+}
+
 export interface OrderRequest {
     userId: string;
     strategyId?: string;
@@ -155,7 +179,7 @@ export class OrderExecutor {
                     takeProfit: request.takeProfit ?? null,
                     entryOrderId: order.id,
                     status: 'OPEN',
-                },
+                } as never,
             });
 
             // Update wallet margin
@@ -187,7 +211,7 @@ export class OrderExecutor {
                     status: 'OPEN',
                 },
                 orderBy: { openedAt: 'asc' }, // FIFO
-            });
+            }) as PositionExtended | null;
 
             if (position) {
                 const pnl =

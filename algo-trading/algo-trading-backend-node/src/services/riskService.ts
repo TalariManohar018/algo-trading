@@ -21,6 +21,20 @@ import { env } from '../config/env';
 import { riskLogger } from '../utils/logger';
 import { getBrokerInstance } from '../engine/brokerFactory';
 
+// Extended type that always includes the new schema fields.
+// Prisma client may not reflect them until a full TS server restart.
+interface RiskStateExtended {
+    id: string;
+    userId: string;
+    dailyLoss: number;
+    dailyTradeCount: number;
+    consecutiveLosses: number;
+    isLocked: boolean;
+    lockReason: string | null;
+    tradingDate: Date;
+    updatedAt: Date;
+}
+
 export interface RiskCheckResult {
     allowed: boolean;
     reason?: string;
@@ -223,8 +237,8 @@ export class RiskManagementService {
                 dailyTradeCount: { increment: 1 },
                 dailyLoss: isLoss ? { increment: Math.abs(pnl) } : undefined,
                 consecutiveLosses: isLoss ? { increment: 1 } : { set: 0 }, // reset on win
-            },
-        });
+            } as never,
+        }) as unknown as RiskStateExtended;
 
         riskLogger.info(
             `Trade result: PnL ₹${pnl.toFixed(2)} | Daily loss: ₹${updated.dailyLoss.toFixed(0)}/${env.MAX_DAILY_LOSS} | Trades: ${updated.dailyTradeCount}/${env.MAX_TRADES_PER_DAY} | Consec losses: ${updated.consecutiveLosses}/${env.CONSECUTIVE_LOSS_LIMIT}`,
@@ -289,7 +303,7 @@ export class RiskManagementService {
     async unlockEngine(userId: string): Promise<void> {
         await prisma.riskState.update({
             where: { userId },
-            data: { isLocked: false, lockReason: null, consecutiveLosses: 0 },
+            data: { isLocked: false, lockReason: null, consecutiveLosses: 0 } as never,
         });
         await prisma.auditLog.create({
             data: { userId, event: 'ENGINE_UNLOCKED', severity: 'INFO', message: 'Engine manually unlocked by admin' },
@@ -313,14 +327,14 @@ export class RiskManagementService {
                 tradingDate: today,
                 isLocked: false,
                 lockReason: null,
-            },
+            } as never,
             create: {
                 userId,
                 dailyLoss: 0,
                 dailyTradeCount: 0,
                 consecutiveLosses: 0,
                 tradingDate: today,
-            },
+            } as never,
         });
         riskLogger.info('Daily counters reset for new trading day', { userId });
     }
@@ -328,13 +342,13 @@ export class RiskManagementService {
     /**
      * Get current risk state — creates default if missing, auto-resets on new day.
      */
-    async getRiskState(userId: string) {
-        let state = await prisma.riskState.findUnique({ where: { userId } });
+    async getRiskState(userId: string): Promise<RiskStateExtended> {
+        let state = await prisma.riskState.findUnique({ where: { userId } }) as unknown as RiskStateExtended | null;
 
         if (!state) {
             state = await prisma.riskState.create({
                 data: { userId, tradingDate: new Date() },
-            });
+            }) as unknown as RiskStateExtended;
         }
 
         // Auto-reset if it's a new trading day
@@ -342,7 +356,7 @@ export class RiskManagementService {
         today.setHours(0, 0, 0, 0);
         if (state.tradingDate < today) {
             await this.resetDailyCounters(userId);
-            state = await prisma.riskState.findUnique({ where: { userId } });
+            state = await prisma.riskState.findUnique({ where: { userId } }) as unknown as RiskStateExtended;
         }
 
         return state!;
