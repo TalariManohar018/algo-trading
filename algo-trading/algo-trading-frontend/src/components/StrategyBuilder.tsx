@@ -323,15 +323,10 @@ export default function StrategyBuilder() {
                                 Quantity *
                             </label>
                             <input
-                                type="text"
-                                inputMode="numeric"
+                                type="number"
                                 value={quantity}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || /^\d+$/.test(val)) {
-                                        setQuantity(val === '' ? 1 : parseInt(val));
-                                    }
-                                }}
+                                onChange={(e) => setQuantity(e.target.value ? parseInt(e.target.value) : 1)}
+                                min="1"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -369,15 +364,10 @@ export default function StrategyBuilder() {
                                 Max Trades Per Day *
                             </label>
                             <input
-                                type="text"
-                                inputMode="numeric"
+                                type="number"
                                 value={maxTradesPerDay}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || /^\d+$/.test(val)) {
-                                        setMaxTradesPerDay(val === '' ? 1 : parseInt(val));
-                                    }
-                                }}
+                                onChange={(e) => setMaxTradesPerDay(e.target.value ? parseInt(e.target.value) : 1)}
+                                min="1"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -453,15 +443,11 @@ export default function StrategyBuilder() {
                                 Max Profit Target (₹)
                             </label>
                             <input
-                                type="text"
-                                inputMode="decimal"
+                                type="number"
                                 value={maxProfitTarget}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                        setMaxProfitTarget(val === '' || val === '.' ? 0 : parseFloat(val) || 0);
-                                    }
-                                }}
+                                onChange={(e) => setMaxProfitTarget(e.target.value ? parseFloat(e.target.value) : 0)}
+                                min="0"
+                                step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -471,15 +457,11 @@ export default function StrategyBuilder() {
                                 Stop Loss (%)
                             </label>
                             <input
-                                type="text"
-                                inputMode="decimal"
+                                type="number"
                                 value={stopLossPercent}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                        setStopLossPercent(val === '' || val === '.' ? 0 : parseFloat(val) || 0);
-                                    }
-                                }}
+                                onChange={(e) => setStopLossPercent(e.target.value ? parseFloat(e.target.value) : 0)}
+                                min="0"
+                                step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -489,15 +471,11 @@ export default function StrategyBuilder() {
                                 Take Profit (%)
                             </label>
                             <input
-                                type="text"
-                                inputMode="decimal"
+                                type="number"
                                 value={takeProfitPercent}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                        setTakeProfitPercent(val === '' || val === '.' ? 0 : parseFloat(val) || 0);
-                                    }
-                                }}
+                                onChange={(e) => setTakeProfitPercent(e.target.value ? parseFloat(e.target.value) : 0)}
+                                min="0"
+                                step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>

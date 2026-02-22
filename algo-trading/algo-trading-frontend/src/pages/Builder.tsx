@@ -64,27 +64,27 @@ export default function Builder() {
                         <div>
                             <label className="text-sm text-gray-600">Stop Loss (%)</label>
                             <input
-                                type="text"
-                                inputMode="decimal"
+                                type="number"
                                 placeholder="2.0"
+                                step="any"
                                 className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
                         <div>
                             <label className="text-sm text-gray-600">Take Profit (%)</label>
                             <input
-                                type="text"
-                                inputMode="decimal"
+                                type="number"
                                 placeholder="5.0"
+                                step="any"
                                 className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
                         <div>
                             <label className="text-sm text-gray-600">Max Position Size</label>
                             <input
-                                type="text"
-                                inputMode="numeric"
+                                type="number"
                                 placeholder="100"
+                                min="1"
                                 className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>

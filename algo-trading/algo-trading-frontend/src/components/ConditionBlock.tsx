@@ -57,16 +57,11 @@ export default function ConditionBlock({ condition, showLogic, onUpdate, onRemov
 
                 {needsPeriod && (
                     <input
-                        type="text"
-                        inputMode="numeric"
+                        type="number"
                         value={condition.period || 14}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '' || /^\d+$/.test(val)) {
-                                onUpdate(condition.id, 'period', val === '' ? 14 : parseInt(val));
-                            }
-                        }}
+                        onChange={(e) => onUpdate(condition.id, 'period', e.target.value ? parseInt(e.target.value) : 14)}
                         placeholder="Period"
+                        min="1"
                         className="w-20 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                 )}
@@ -82,16 +77,11 @@ export default function ConditionBlock({ condition, showLogic, onUpdate, onRemov
                 </select>
 
                 <input
-                    type="text"
-                    inputMode="decimal"
+                    type="number"
                     value={condition.value}
-                    onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
-                            onUpdate(condition.id, 'value', val === '' || val === '-' || val === '.' ? 0 : parseFloat(val) || 0);
-                        }
-                    }}
+                    onChange={(e) => onUpdate(condition.id, 'value', e.target.value ? parseFloat(e.target.value) : 0)}
                     placeholder="Value"
+                    step="any"
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
 

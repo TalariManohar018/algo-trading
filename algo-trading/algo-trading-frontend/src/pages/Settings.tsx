@@ -173,18 +173,16 @@ export default function Settings() {
                                     Starting Capital (₹)
                                 </label>
                                 <input
-                                    type="text"
-                                    inputMode="numeric"
+                                    type="number"
                                     value={settings.startingCapital}
                                     onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (val === '' || /^\d+$/.test(val)) {
-                                            const value = val === '' ? 10000 : parseInt(val);
-                                            updateSettings({ startingCapital: value });
-                                        }
+                                        const value = e.target.value ? parseInt(e.target.value) : 10000;
+                                        updateSettings({ startingCapital: value });
                                     }}
                                     onBlur={handleSaveSettings}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    min="10000"
+                                    step="10000"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">Initial balance for paper trading</p>
                             </div>
@@ -258,17 +256,13 @@ export default function Settings() {
                                     Max Loss Per Day (₹)
                                 </label>
                                 <input
-                                    type="text"
-                                    inputMode="numeric"
+                                    type="number"
                                     value={settings.maxLossPerDay}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (val === '' || /^\d+$/.test(val)) {
-                                            updateSettings({ maxLossPerDay: val === '' ? 1000 : parseInt(val) });
-                                        }
-                                    }}
+                                    onChange={(e) => updateSettings({ maxLossPerDay: e.target.value ? parseInt(e.target.value) : 1000 })}
                                     onBlur={handleSaveSettings}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    min="1000"
+                                    step="1000"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
                                     The maximum combined loss allowed in a single trading day. Trading will automatically stop when this limit is hit.
@@ -280,17 +274,12 @@ export default function Settings() {
                                     Max Trades Per Day
                                 </label>
                                 <input
-                                    type="text"
-                                    inputMode="numeric"
+                                    type="number"
                                     value={settings.maxTradesPerDay}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (val === '' || /^\d+$/.test(val)) {
-                                            updateSettings({ maxTradesPerDay: val === '' ? 1 : parseInt(val) });
-                                        }
-                                    }}
+                                    onChange={(e) => updateSettings({ maxTradesPerDay: e.target.value ? parseInt(e.target.value) : 1 })}
                                     onBlur={handleSaveSettings}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    min="1"
                                 />
                                 <p className="text-xs text-gray-500 mt-1">
                                     Caps the number of round-trip trades per day to prevent over-trading and excessive brokerage costs.
