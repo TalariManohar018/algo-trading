@@ -342,6 +342,9 @@ export default function StrategyBuilder() {
                                         setQuantityInput('1');
                                     }
                                 }}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') e.currentTarget.blur();
+                                }}
                                 min="1"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
@@ -392,6 +395,9 @@ export default function StrategyBuilder() {
                                         setMaxTradesPerDay(1);
                                         setMaxTradesInput('1');
                                     }
+                                }}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') e.currentTarget.blur();
                                 }}
                                 min="1"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -464,6 +470,9 @@ export default function StrategyBuilder() {
                                         setMaxLossInput('0');
                                     }
                                 }}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') e.currentTarget.blur();
+                                }}
                                 min="0"
                                 step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -487,6 +496,9 @@ export default function StrategyBuilder() {
                                         setMaxProfitTarget(0);
                                         setMaxProfitInput('0');
                                     }
+                                }}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') e.currentTarget.blur();
                                 }}
                                 min="0"
                                 step="any"
@@ -512,6 +524,9 @@ export default function StrategyBuilder() {
                                         setStopLossInput('0');
                                     }
                                 }}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') e.currentTarget.blur();
+                                }}
                                 min="0"
                                 step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -535,6 +550,9 @@ export default function StrategyBuilder() {
                                         setTakeProfitPercent(0);
                                         setTakeProfitInput('0');
                                     }
+                                }}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter') e.currentTarget.blur();
                                 }}
                                 min="0"
                                 step="any"

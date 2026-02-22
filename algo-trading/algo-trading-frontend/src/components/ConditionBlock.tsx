@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { IndicatorType, ConditionType, ConditionLogic } from '../types/strategy';
 
 interface Condition {
@@ -30,6 +31,19 @@ const conditionTypes: { value: ConditionType; label: string }[] = [
 
 export default function ConditionBlock({ condition, showLogic, onUpdate, onRemove }: ConditionBlockProps) {
     const needsPeriod = ['EMA', 'SMA', 'RSI', 'ADX'].includes(condition.indicatorType);
+    
+    // Local state for inputs to allow smooth typing
+    const [periodInput, setPeriodInput] = useState<string>((condition.period || 14).toString());
+    const [valueInput, setValueInput] = useState<string>(condition.value.toString());
+
+    // Sync with prop changes
+    useEffect(() => {
+        setPeriodInput((condition.period || 14).toString());
+    }, [condition.period]);
+
+    useEffect(() => {
+        setValueInput(condition.value.toString());
+    }, [condition.value]);
 
     return (
         <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4">
@@ -58,8 +72,22 @@ export default function ConditionBlock({ condition, showLogic, onUpdate, onRemov
                 {needsPeriod && (
                     <input
                         type="number"
-                        value={condition.period || 14}
-                        onChange={(e) => onUpdate(condition.id, 'period', e.target.value ? parseInt(e.target.value) : 14)}
+                        value={periodInput}
+                        onChange={(e) => setPeriodInput(e.target.value)}
+                        onBlur={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val) && val > 0) {
+                                onUpdate(condition.id, 'period', val);
+                            } else {
+                                onUpdate(condition.id, 'period', 14);
+                                setPeriodInput('14');
+                            }
+                        }}
+                        onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                                e.currentTarget.blur();
+                            }
+                        }}
                         placeholder="Period"
                         min="1"
                         className="w-20 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -78,8 +106,22 @@ export default function ConditionBlock({ condition, showLogic, onUpdate, onRemov
 
                 <input
                     type="number"
-                    value={condition.value}
-                    onChange={(e) => onUpdate(condition.id, 'value', e.target.value ? parseFloat(e.target.value) : 0)}
+                    value={valueInput}
+                    onChange={(e) => setValueInput(e.target.value)}
+                    onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (!isNaN(val)) {
+                            onUpdate(condition.id, 'value', val);
+                        } else {
+                            onUpdate(condition.id, 'value', 0);
+                            setValueInput('0');
+                        }
+                    }}
+                    onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                        }
+                    }}
                     placeholder="Value"
                     step="any"
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
