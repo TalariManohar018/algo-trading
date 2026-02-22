@@ -15,7 +15,13 @@ router.post(
         const userId = req.user!.userId;
         const { count = 5 } = req.body;
 
-        const symbols = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK'];
+        // Get user's strategies to link trades to them
+        const strategies = await prisma.strategy.findMany({
+            where: { userId },
+            take: 5,
+        });
+
+        const symbols = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATASTEEL', 'WIPRO'];
         const sides = ['BUY', 'SELL'];
         const createdTrades = [];
 
@@ -23,7 +29,7 @@ router.post(
             const symbol = symbols[Math.floor(Math.random() * symbols.length)];
             const side = sides[Math.floor(Math.random() * sides.length)];
             const entryPrice = 1000 + Math.random() * 2000;
-            const exitPrice = entryPrice + (Math.random() - 0.5) * 200;
+            const exitPrice = entryPrice + (Math.random() - 0.45) * 200; // Slightly favor wins
             const quantity = Math.floor(Math.random() * 10) + 1;
             const pnl = (exitPrice - entryPrice) * quantity * (side === 'BUY' ? 1 : -1);
             const pnlPercent = (pnl / (entryPrice * quantity)) * 100;
@@ -32,10 +38,15 @@ router.post(
             const now = new Date();
             const entryTime = new Date(now.getTime() - duration * 1000);
 
+            // Randomly assign to a strategy or leave null
+            const strategyId = strategies.length > 0 && Math.random() > 0.3
+                ? strategies[Math.floor(Math.random() * strategies.length)].id
+                : null;
+
             const trade = await prisma.trade.create({
                 data: {
                     userId,
-                    strategyId: null,
+                    strategyId,
                     symbol,
                     exchange: 'NSE',
                     side,
@@ -48,9 +59,19 @@ router.post(
                     exitTime: now,
                     duration,
                 },
+                include: {
+                    strategy: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                },
             });
 
-            createdTrades.push(trade);
+            createdTrades.push({
+                ...trade,
+                strategyName: trade.strategy?.name || 'Manual Trade',
+            });
         }
 
         res.json({
@@ -71,7 +92,13 @@ router.post(
         const userId = req.user!.userId;
         const { count = 3 } = req.body;
 
-        const symbols = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK'];
+        // Get user's strategies to link positions to them
+        const strategies = await prisma.strategy.findMany({
+            where: { userId },
+            take: 5,
+        });
+
+        const symbols = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'TATASTEEL', 'WIPRO'];
         const sides: Array<'LONG' | 'SHORT'> = ['LONG', 'SHORT'];
         const createdPositions = [];
 
@@ -89,10 +116,15 @@ router.post(
                 ? entryPrice * 1.05 
                 : entryPrice * 0.95;
 
+            // Randomly assign to a strategy or leave null
+            const strategyId = strategies.length > 0 && Math.random() > 0.3
+                ? strategies[Math.floor(Math.random() * strategies.length)].id
+                : null;
+
             const position = await prisma.position.create({
                 data: {
                     userId,
-                    strategyId: null,
+                    strategyId,
                     symbol,
                     exchange: 'NSE',
                     side,
@@ -104,9 +136,19 @@ router.post(
                     unrealizedPnl,
                     status: 'OPEN',
                 } as any,
+                include: {
+                    strategy: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                },
             });
 
-            createdPositions.push(position);
+            createdPositions.push({
+                ...position,
+                strategyName: position.strategy?.name || 'Manual Trade',
+            });
         }
 
         res.json({

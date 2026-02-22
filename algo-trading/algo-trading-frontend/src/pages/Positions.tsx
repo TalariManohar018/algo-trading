@@ -87,12 +87,32 @@ export default function Positions() {
     const handleClosePosition = async (positionId: string) => {
         if (!confirm('Close this position?')) return;
         const position = openPositions.find(p => p.id === positionId);
-        if (!position) { showError('Position not found'); return; }
+        if (!position) { 
+            showError('Position not found'); 
+            return; 
+        }
+        
         try {
             setClosingId(positionId);
             setLoading(true, 'Closing position...');
-            tradingContext.closePosition(positionId, position.currentPrice);
-            showSuccess(`Closed. P&L: ₹${position.unrealizedPnl.toFixed(2)}`);
+            
+            // Call backend to close position
+            const response = await fetch(`http://localhost:3001/api/positions/${positionId}/close`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ exitPrice: position.currentPrice }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to close position');
+            }
+
+            const result = await response.json();
+            showSuccess(result.message || `Position closed. P&L: ₹${position.unrealizedPnl.toFixed(2)}`);
+            
+            // Refresh positions
+            await fetchPositions();
         } catch (err) {
             showError(err instanceof Error ? err.message : 'Failed to close position');
         } finally {

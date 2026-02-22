@@ -57,4 +57,72 @@ router.get(
     })
 );
 
+// POST /api/positions/:id/close — Close a position manually
+router.post(
+    '/:id/close',
+    authenticate,
+    asyncHandler(async (req: Request, res: Response) => {
+        const position = await prisma.position.findUnique({ where: { id: req.params.id } });
+        if (!position || position.userId !== req.user!.userId) {
+            throw new NotFoundError('Position not found');
+        }
+        if (position.status === 'CLOSED') {
+            throw new Error('Position already closed');
+        }
+
+        const exitPrice = req.body.exitPrice || position.currentPrice;
+        const pnl = position.side === 'LONG'
+            ? (exitPrice - position.entryPrice) * position.quantity
+            : (position.entryPrice - exitPrice) * position.quantity;
+        const pnlPercent = (pnl / (position.entryPrice * position.quantity)) * 100;
+        const duration = Math.floor((Date.now() - new Date(position.openedAt).getTime()) / 1000);
+
+        // Close position
+        const closedPosition = await prisma.position.update({
+            where: { id: req.params.id },
+            data: {
+                status: 'CLOSED',
+                exitPrice,
+                realizedPnl: pnl,
+                currentPrice: exitPrice,
+                closedAt: new Date(),
+            },
+        });
+
+        // Create trade record
+        await prisma.trade.create({
+            data: {
+                userId: req.user!.userId,
+                strategyId: position.strategyId,
+                symbol: position.symbol,
+                exchange: position.exchange,
+                side: position.side === 'LONG' ? 'BUY' : 'SELL',
+                quantity: position.quantity,
+                entryPrice: position.entryPrice,
+                exitPrice,
+                pnl,
+                pnlPercent,
+                entryTime: position.openedAt,
+                exitTime: new Date(),
+                duration,
+            },
+        });
+
+        // Update wallet
+        await prisma.wallet.update({
+            where: { userId: req.user!.userId },
+            data: {
+                balance: { increment: pnl },
+                realizedPnl: { increment: pnl },
+            },
+        });
+
+        res.json({
+            success: true,
+            message: `Position closed. P&L: ₹${pnl.toFixed(2)}`,
+            data: closedPosition,
+        });
+    })
+);
+
 export default router;
