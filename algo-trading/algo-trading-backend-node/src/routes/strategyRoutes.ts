@@ -204,52 +204,123 @@ router.post(
             throw new NotFoundError('Strategy not found');
         }
 
-        // Simulate a quick entry and exit trade
+        // decide whether to close immediately or leave position open
+        const { closeImmediately = false } = req.body;
+
+        // Simulate entry
         const entryPrice = 1000 + Math.random() * 2000;
-        const exitPrice = entryPrice + (Math.random() - 0.45) * 100; // Slightly favor wins
         const quantity = strategy.quantity;
-        const pnl = (exitPrice - entryPrice) * quantity;
-        const pnlPercent = (pnl / (entryPrice * quantity)) * 100;
-        const duration = Math.floor(Math.random() * 1800) + 300; // 5-35 minutes
+        const side = Math.random() > 0.5 ? 'BUY' : 'SELL';
+        const positionSide = side === 'BUY' ? 'LONG' : 'SHORT';
+        
+        const stopLoss = strategy.stopLossPercent 
+            ? entryPrice * (1 - strategy.stopLossPercent / 100)
+            : null;
+        const takeProfit = strategy.takeProfitPercent
+            ? entryPrice * (1 + strategy.takeProfitPercent / 100)
+            : null;
 
         const now = new Date();
-        const entryTime = new Date(now.getTime() - duration * 1000);
 
-        const trade = await prisma.trade.create({
+        // Create OPEN position first
+        const position = await prisma.position.create({
             data: {
                 userId: req.user!.userId,
                 strategyId: strategy.id,
                 symbol: strategy.symbol,
                 exchange: 'NSE',
-                side: Math.random() > 0.5 ? 'BUY' : 'SELL',
+                side: positionSide,
                 quantity,
                 entryPrice,
-                exitPrice,
-                pnl,
-                pnlPercent,
-                entryTime,
-                exitTime: now,
-                duration,
-            },
+                currentPrice: entryPrice,
+                stopLoss,
+                takeProfit,
+                status: 'OPEN',
+            } as any,
         });
 
-        // Update wallet with PnL
+        // Update wallet margin
+        const marginUsed = entryPrice * quantity * 0.2; // 20% margin
         await prisma.wallet.update({
             where: { userId: req.user!.userId },
             data: {
-                balance: { increment: pnl },
-                realizedPnl: { increment: pnl },
+                usedMargin: { increment: marginUsed },
+                availableMargin: { decrement: marginUsed },
             },
         });
 
-        res.json({
-            success: true,
-            message: `Test trade executed for ${strategy.name}`,
-            data: {
-                ...trade,
-                strategyName: strategy.name,
-            },
-        });
+        // If closeImmediately is true, close the position and create trade
+        if (closeImmediately) {
+            const duration = Math.floor(Math.random() * 1800) + 300; // 5-35 minutes
+            const exitPrice = entryPrice + (Math.random() - 0.45) * 100; // Slightly favor wins
+            const pnl = positionSide === 'LONG'
+                ? (exitPrice - entryPrice) * quantity
+                : (entryPrice - exitPrice) * quantity;
+            const pnlPercent = (pnl / (entryPrice * quantity)) * 100;
+
+            const entryTime = new Date(now.getTime() - duration * 1000);
+
+            // Close position
+            await prisma.position.update({
+                where: { id: position.id },
+                data: {
+                    status: 'CLOSED',
+                    exitPrice,
+                    realizedPnl: pnl,
+                    currentPrice: exitPrice,
+                    closedAt: now,
+                },
+            });
+
+            // Create trade record
+            const trade = await prisma.trade.create({
+                data: {
+                    userId: req.user!.userId,
+                    strategyId: strategy.id,
+                    symbol: strategy.symbol,
+                    exchange: 'NSE',
+                    side,
+                    quantity,
+                    entryPrice,
+                    exitPrice,
+                    pnl,
+                    pnlPercent,
+                    entryTime,
+                    exitTime: now,
+                    duration,
+                },
+            });
+
+            // Release margin and update wallet
+            await prisma.wallet.update({
+                where: { userId: req.user!.userId },
+                data: {
+                    balance: { increment: pnl },
+                    realizedPnl: { increment: pnl },
+                    usedMargin: { decrement: marginUsed },
+                    availableMargin: { increment: marginUsed },
+                },
+            });
+
+            res.json({
+                success: true,
+                message: `Test trade executed and closed for ${strategy.name}`,
+                data: {
+                    ...trade,
+                    strategyName: strategy.name,
+                },
+            });
+        } else {
+            // Return open position
+            res.json({
+                success: true,
+                message: `Test position opened for ${strategy.name}. You can see it in Positions page.`,
+                data: {
+                    ...position,
+                    strategyName: strategy.name,
+                },
+            });
+        }
     })
 );
 

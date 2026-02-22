@@ -178,7 +178,11 @@ export default function Strategies() {
 
             const response = await fetch(`http://localhost:3001/api/strategies/${originalId}/test-execute`, {
                 method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 credentials: 'include',
+                body: JSON.stringify({ closeImmediately: true }),
             });
 
             if (!response.ok) {
