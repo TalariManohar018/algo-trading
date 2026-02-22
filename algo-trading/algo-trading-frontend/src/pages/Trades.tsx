@@ -95,6 +95,45 @@ export default function Trades() {
         }
     };
 
+    const generateDemoTrades = async () => {
+        try {
+            setLoading(true);
+            const response = await fetch('http://localhost:3001/api/demo/generate-trades', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ count: 10 }),
+            });
+            if (!response.ok) throw new Error('Failed to generate demo trades');
+            await fetchTrades();
+            alert('10 demo trades generated!');
+        } catch (error) {
+            console.error('Error generating demo trades:', error);
+            alert('Failed to generate demo trades');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const clearAllData = async () => {
+        if (!confirm('Clear all trades and positions? This cannot be undone.')) return;
+        try {
+            setLoading(true);
+            const response = await fetch('http://localhost:3001/api/demo/clear-all', {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+            if (!response.ok) throw new Error('Failed to clear data');
+            await fetchTrades();
+            alert('All data cleared!');
+        } catch (error) {
+            console.error('Error clearing data:', error);
+            alert('Failed to clear data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSort = (key: SortKey) => {
         if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
         else { setSortKey(key); setSortDir('desc'); }
@@ -139,6 +178,20 @@ export default function Trades() {
                     <p className="page-sub">Complete history of all executions</p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={generateDemoTrades}
+                        disabled={loading}
+                        className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        Generate Demo Trades
+                    </button>
+                    <button
+                        onClick={clearAllData}
+                        disabled={loading}
+                        className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                    >
+                        Clear All
+                    </button>
                     <select
                         value={filterSide}
                         onChange={e => setFilterSide(e.target.value as any)}

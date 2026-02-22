@@ -10,6 +10,7 @@ import riskRoutes from './riskRoutes';
 import dashboardRoutes from './dashboardRoutes';
 import brokerAuthRoutes from './brokerAuthRoutes';
 import engineRoutes from './engineRoutes';
+import demoRoutes from './demoRoutes';
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use('/risk', riskRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/broker', brokerAuthRoutes);
 router.use('/engine', engineRoutes);
+router.use('/demo', demoRoutes);
 
 export default router;

@@ -49,6 +49,26 @@ export default function Positions() {
         }
     };
 
+    const generateDemoPositions = async () => {
+        try {
+            setLoading(true, 'Generating demo positions...');
+            const response = await fetch('http://localhost:3001/api/demo/generate-positions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ count: 5 }),
+            });
+            if (!response.ok) throw new Error('Failed to generate demo positions');
+            await fetchPositions();
+            showSuccess('5 demo positions generated!');
+        } catch (error) {
+            console.error('Error generating demo positions:', error);
+            showError('Failed to generate demo positions');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchPositions();
         // Poll every 5 seconds for live updates
@@ -98,13 +118,21 @@ export default function Positions() {
                     <h1 className="page-title">Positions</h1>
                     <p className="page-sub">Real-time open position monitor</p>
                 </div>
-                <div className="flex flex-col items-end gap-1 text-xs text-gray-500">
-                    <div className="flex items-center gap-2">
-                        <span className="live-dot" />
-                        Live
-                    </div>
-                    <div className="text-gray-400">
-                        Updated: {lastUpdate.toLocaleTimeString('en-IN')}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={generateDemoPositions}
+                        className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        Generate Demo
+                    </button>
+                    <div className="flex flex-col items-end gap-1 text-xs text-gray-500">
+                        <div className="flex items-center gap-2">
+                            <span className="live-dot" />
+                            Live
+                        </div>
+                        <div className="text-gray-400">
+                            Updated: {lastUpdate.toLocaleTimeString('en-IN')}
+                        </div>
                     </div>
                 </div>
             </div>
