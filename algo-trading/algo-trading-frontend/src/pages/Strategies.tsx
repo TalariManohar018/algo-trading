@@ -315,22 +315,31 @@ export default function Strategies() {
                                     </button>
                                 </div>
                             ) : (
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setSelectedStrategy(strategy)}
-                                        className="btn-secondary flex-1 justify-center btn-sm"
-                                    >
-                                        <Eye className="h-3.5 w-3.5" />
-                                        View Details
-                                    </button>
-                                    <button
-                                        onClick={() => setConfirmDeleteId(strategy.id!)}
-                                        disabled={strategy.status === 'RUNNING'}
-                                        title={strategy.status === 'RUNNING' ? 'Stop the strategy before deleting' : 'Delete strategy'}
-                                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                    >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setSelectedStrategy(strategy)}
+                                            className="btn-secondary flex-1 justify-center btn-sm"
+                                        >
+                                            <Eye className="h-3.5 w-3.5" />
+                                            View
+                                        </button>
+                                        <button
+                                            onClick={() => handleTestExecute(strategy.id!)}
+                                            className="btn-primary flex-1 justify-center btn-sm"
+                                            title="Execute a test trade from this strategy"
+                                        >
+                                            Test Execute
+                                        </button>
+                                        <button
+                                            onClick={() => setConfirmDeleteId(strategy.id!)}
+                                            disabled={strategy.status === 'RUNNING'}
+                                            title={strategy.status === 'RUNNING' ? 'Stop the strategy before deleting' : 'Delete strategy'}
+                                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>

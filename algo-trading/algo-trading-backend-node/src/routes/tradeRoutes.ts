@@ -5,7 +5,7 @@ import { authenticate } from '../middleware/auth';
 
 const router = Router();
 
-// GET /api/trades — list user trades
+// GET /api/trades — list user trades with strategy names
 router.get(
     '/',
     authenticate,
@@ -14,6 +14,13 @@ router.get(
 
         const trades = await prisma.trade.findMany({
             where: { userId: req.user!.userId },
+            include: {
+                strategy: {
+                    select: {
+                        name: true,
+                    },
+                },
+            },
             orderBy: { exitTime: 'desc' },
             take: Math.min(parseInt(limit as string), 100),
             skip: parseInt(offset as string),
@@ -21,7 +28,13 @@ router.get(
 
         const total = await prisma.trade.count({ where: { userId: req.user!.userId } });
 
-        res.json({ success: true, data: { trades, total } });
+        // Transform to include strategy name
+        const tradesWithNames = trades.map(t => ({
+            ...t,
+            strategyName: t.strategy?.name || 'Manual Trade',
+        }));
+
+        res.json({ success: true, data: { trades: tradesWithNames, total } });
     })
 );
 

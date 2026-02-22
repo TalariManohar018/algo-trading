@@ -194,4 +194,63 @@ router.delete(
     })
 );
 
+// POST /api/strategies/:id/test-execute — Force execute strategy once for testing
+router.post(
+    '/:id/test-execute',
+    authenticate,
+    asyncHandler(async (req: Request, res: Response) => {
+        const strategy = await prisma.strategy.findUnique({ where: { id: req.params.id } });
+        if (!strategy || strategy.userId !== req.user!.userId) {
+            throw new NotFoundError('Strategy not found');
+        }
+
+        // Simulate a quick entry and exit trade
+        const entryPrice = 1000 + Math.random() * 2000;
+        const exitPrice = entryPrice + (Math.random() - 0.45) * 100; // Slightly favor wins
+        const quantity = strategy.quantity;
+        const pnl = (exitPrice - entryPrice) * quantity;
+        const pnlPercent = (pnl / (entryPrice * quantity)) * 100;
+        const duration = Math.floor(Math.random() * 1800) + 300; // 5-35 minutes
+
+        const now = new Date();
+        const entryTime = new Date(now.getTime() - duration * 1000);
+
+        const trade = await prisma.trade.create({
+            data: {
+                userId: req.user!.userId,
+                strategyId: strategy.id,
+                symbol: strategy.symbol,
+                exchange: 'NSE',
+                side: Math.random() > 0.5 ? 'BUY' : 'SELL',
+                quantity,
+                entryPrice,
+                exitPrice,
+                pnl,
+                pnlPercent,
+                entryTime,
+                exitTime: now,
+                duration,
+            },
+        });
+
+        // Update wallet with PnL
+        await prisma.wallet.update({
+            where: { userId: req.user!.userId },
+            data: {
+                balance: { increment: pnl },
+                realizedPnl: { increment: pnl },
+            },
+        });
+
+        res.json({
+            success: true,
+            message: `Test trade executed for ${strategy.name}`,
+            data: {
+                ...trade,
+                strategyName: strategy.name,
+            },
+        });
+    })
+);
+
 export default router;

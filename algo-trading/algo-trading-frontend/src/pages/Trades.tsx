@@ -8,6 +8,7 @@ interface BackendTrade {
     id: string;
     userId: string;
     strategyId: string | null;
+    strategyName?: string;
     symbol: string;
     side: string;
     quantity: number;
@@ -77,7 +78,7 @@ export default function Trades() {
             const transformedTrades: Trade[] = backendTrades.map(t => ({
                 id: t.id,
                 strategyId: t.strategyId || 'manual',
-                strategyName: t.strategyId || 'Manual Trade',
+                strategyName: t.strategyName || 'Manual Trade',
                 symbol: t.symbol,
                 side: t.side as 'BUY' | 'SELL',
                 quantity: t.quantity,
