@@ -164,6 +164,38 @@ export default function Strategies() {
         }
     };
 
+    const handleTestExecute = async (id: number) => {
+        try {
+            setGlobalLoading(true, 'Executing test trade...');
+            const strategyData = strategies.find(s => s.id === id);
+            if (!strategyData) {
+                showError('Strategy not found');
+                setGlobalLoading(false);
+                return;
+            }
+
+            const originalId = (strategyData as any).originalId || strategyData.id;
+
+            const response = await fetch(`http://localhost:3001/api/strategies/${originalId}/test-execute`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to execute test trade');
+            }
+            
+            const result = await response.json();
+
+            showSuccess(`✅ Test trade executed! P&L: ₹${result.data.pnl.toFixed(2)} - Check Trades page!`);
+            setGlobalLoading(false);
+        } catch (error) {
+            setGlobalLoading(false);
+            showError(error instanceof Error ? error.message : 'Failed to execute test trade');
+        }
+    };
+
     const filteredStrategies = strategies.filter(strategy => {
         const matchesSearch = strategy.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             strategy.symbol.toLowerCase().includes(searchTerm.toLowerCase());
