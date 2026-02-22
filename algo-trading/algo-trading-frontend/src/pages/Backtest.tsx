@@ -133,9 +133,15 @@ export default function Backtest() {
                             Initial Capital (₹)
                         </label>
                         <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
                             value={initialCapital}
-                            onChange={(e) => setInitialCapital(parseInt(e.target.value) || 100000)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || /^\d+$/.test(val)) {
+                                    setInitialCapital(val === '' ? 100000 : parseInt(val));
+                                }
+                            }}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                     </div>
