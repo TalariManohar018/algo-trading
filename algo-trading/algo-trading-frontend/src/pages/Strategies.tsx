@@ -200,6 +200,42 @@ export default function Strategies() {
         }
     };
 
+    const handleOpenTestPosition = async (id: number) => {
+        try {
+            setGlobalLoading(true, 'Opening test position...');
+            const strategyData = strategies.find(s => s.id === id);
+            if (!strategyData) {
+                showError('Strategy not found');
+                setGlobalLoading(false);
+                return;
+            }
+
+            const originalId = (strategyData as any).originalId || strategyData.id;
+
+            const response = await fetch(`http://localhost:3001/api/strategies/${originalId}/test-execute`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({ closeImmediately: false }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to open test position');
+            }
+            
+            const result = await response.json();
+
+            showSuccess(`✅ Position opened! Symbol: ${result.data.symbol} at ₹${result.data.entryPrice.toFixed(2)} - Check Positions page!`);
+            setGlobalLoading(false);
+        } catch (error) {
+            setGlobalLoading(false);
+            showError(error instanceof Error ? error.message : 'Failed to open test position');
+        }
+    };
+
     const filteredStrategies = strategies.filter(strategy => {
         const matchesSearch = strategy.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             strategy.symbol.toLowerCase().includes(searchTerm.toLowerCase());
@@ -361,19 +397,28 @@ export default function Strategies() {
                                             View
                                         </button>
                                         <button
-                                            onClick={() => handleTestExecute(strategy.id!)}
-                                            className="btn-primary flex-1 justify-center btn-sm"
-                                            title="Execute a test trade from this strategy"
-                                        >
-                                            Test Execute
-                                        </button>
-                                        <button
                                             onClick={() => setConfirmDeleteId(strategy.id!)}
                                             disabled={strategy.status === 'RUNNING'}
                                             title={strategy.status === 'RUNNING' ? 'Stop the strategy before deleting' : 'Delete strategy'}
                                             className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                         >
                                             <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleOpenTestPosition(strategy.id!)}
+                                            className="btn-secondary flex-1 justify-center btn-sm text-xs"
+                                            title="Open a test position (shows in Positions page)"
+                                        >
+                                            Open Position
+                                        </button>
+                                        <button
+                                            onClick={() => handleTestExecute(strategy.id!)}
+                                            className="btn-primary flex-1 justify-center btn-sm text-xs"
+                                            title="Execute a full test trade (opens and closes, shows in Trades)"
+                                        >
+                                            Test Execute
                                         </button>
                                     </div>
                                 </div>
