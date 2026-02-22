@@ -26,9 +26,11 @@ export default function StrategyBuilder() {
     // Trading Parameters
     const [timeframe, setTimeframe] = useState<TimeFrame>('FIVE_MINUTES');
     const [quantity, setQuantity] = useState<number>(1);
+    const [quantityInput, setQuantityInput] = useState<string>('1');
     const [orderType, setOrderType] = useState<OrderType>('MARKET');
     const [productType, setProductType] = useState<ProductType>('MIS');
     const [maxTradesPerDay, setMaxTradesPerDay] = useState<number>(5);
+    const [maxTradesInput, setMaxTradesInput] = useState<string>('5');
 
     // Trading Window
     const [startTime, setStartTime] = useState('09:15');
@@ -37,9 +39,13 @@ export default function StrategyBuilder() {
 
     // Risk Config
     const [maxLossPerTrade, setMaxLossPerTrade] = useState<number>(1000);
+    const [maxLossInput, setMaxLossInput] = useState<string>('1000');
     const [maxProfitTarget, setMaxProfitTarget] = useState<number>(2000);
+    const [maxProfitInput, setMaxProfitInput] = useState<string>('2000');
     const [stopLossPercent, setStopLossPercent] = useState<number>(2);
+    const [stopLossInput, setStopLossInput] = useState<string>('2');
     const [takeProfitPercent, setTakeProfitPercent] = useState<number>(5);
+    const [takeProfitInput, setTakeProfitInput] = useState<string>('5');
 
     // Conditions
     const [entryConditions, setEntryConditions] = useState<BuilderCondition[]>([
@@ -324,8 +330,18 @@ export default function StrategyBuilder() {
                             </label>
                             <input
                                 type="number"
-                                value={quantity}
-                                onChange={(e) => setQuantity(e.target.value ? parseInt(e.target.value) : 1)}
+                                value={quantityInput}
+                                onChange={(e) => setQuantityInput(e.target.value)}
+                                onBlur={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (!isNaN(val) && val > 0) {
+                                        setQuantity(val);
+                                        setQuantityInput(val.toString());
+                                    } else {
+                                        setQuantity(1);
+                                        setQuantityInput('1');
+                                    }
+                                }}
                                 min="1"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
@@ -365,8 +381,18 @@ export default function StrategyBuilder() {
                             </label>
                             <input
                                 type="number"
-                                value={maxTradesPerDay}
-                                onChange={(e) => setMaxTradesPerDay(e.target.value ? parseInt(e.target.value) : 1)}
+                                value={maxTradesInput}
+                                onChange={(e) => setMaxTradesInput(e.target.value)}
+                                onBlur={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (!isNaN(val) && val > 0) {
+                                        setMaxTradesPerDay(val);
+                                        setMaxTradesInput(val.toString());
+                                    } else {
+                                        setMaxTradesPerDay(1);
+                                        setMaxTradesInput('1');
+                                    }
+                                }}
                                 min="1"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
@@ -425,15 +451,21 @@ export default function StrategyBuilder() {
                                 Max Loss Per Trade (₹) *
                             </label>
                             <input
-                                type="text"
-                                inputMode="decimal"
-                                value={maxLossPerTrade}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                        setMaxLossPerTrade(val === '' || val === '.' ? 0 : parseFloat(val) || 0);
+                                type="number"
+                                value={maxLossInput}
+                                onChange={(e) => setMaxLossInput(e.target.value)}
+                                onBlur={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    if (!isNaN(val) && val >= 0) {
+                                        setMaxLossPerTrade(val);
+                                        setMaxLossInput(val.toString());
+                                    } else {
+                                        setMaxLossPerTrade(0);
+                                        setMaxLossInput('0');
                                     }
                                 }}
+                                min="0"
+                                step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -444,8 +476,18 @@ export default function StrategyBuilder() {
                             </label>
                             <input
                                 type="number"
-                                value={maxProfitTarget}
-                                onChange={(e) => setMaxProfitTarget(e.target.value ? parseFloat(e.target.value) : 0)}
+                                value={maxProfitInput}
+                                onChange={(e) => setMaxProfitInput(e.target.value)}
+                                onBlur={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    if (!isNaN(val) && val >= 0) {
+                                        setMaxProfitTarget(val);
+                                        setMaxProfitInput(val.toString());
+                                    } else {
+                                        setMaxProfitTarget(0);
+                                        setMaxProfitInput('0');
+                                    }
+                                }}
                                 min="0"
                                 step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -458,8 +500,18 @@ export default function StrategyBuilder() {
                             </label>
                             <input
                                 type="number"
-                                value={stopLossPercent}
-                                onChange={(e) => setStopLossPercent(e.target.value ? parseFloat(e.target.value) : 0)}
+                                value={stopLossInput}
+                                onChange={(e) => setStopLossInput(e.target.value)}
+                                onBlur={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    if (!isNaN(val) && val >= 0) {
+                                        setStopLossPercent(val);
+                                        setStopLossInput(val.toString());
+                                    } else {
+                                        setStopLossPercent(0);
+                                        setStopLossInput('0');
+                                    }
+                                }}
                                 min="0"
                                 step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -472,8 +524,18 @@ export default function StrategyBuilder() {
                             </label>
                             <input
                                 type="number"
-                                value={takeProfitPercent}
-                                onChange={(e) => setTakeProfitPercent(e.target.value ? parseFloat(e.target.value) : 0)}
+                                value={takeProfitInput}
+                                onChange={(e) => setTakeProfitInput(e.target.value)}
+                                onBlur={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    if (!isNaN(val) && val >= 0) {
+                                        setTakeProfitPercent(val);
+                                        setTakeProfitInput(val.toString());
+                                    } else {
+                                        setTakeProfitPercent(0);
+                                        setTakeProfitInput('0');
+                                    }
+                                }}
                                 min="0"
                                 step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
