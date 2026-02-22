@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { IndicatorType, ConditionType, ConditionLogic } from '../types/strategy';
 
 interface Condition {
@@ -32,18 +32,9 @@ const conditionTypes: { value: ConditionType; label: string }[] = [
 export default function ConditionBlock({ condition, showLogic, onUpdate, onRemove }: ConditionBlockProps) {
     const needsPeriod = ['EMA', 'SMA', 'RSI', 'ADX'].includes(condition.indicatorType);
     
-    // Local state for inputs to allow smooth typing
+    // Local state for inputs to allow smooth typing - only initialize, don't sync
     const [periodInput, setPeriodInput] = useState<string>((condition.period || 14).toString());
     const [valueInput, setValueInput] = useState<string>(condition.value.toString());
-
-    // Sync with prop changes
-    useEffect(() => {
-        setPeriodInput((condition.period || 14).toString());
-    }, [condition.period]);
-
-    useEffect(() => {
-        setValueInput(condition.value.toString());
-    }, [condition.value]);
 
     return (
         <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4">
