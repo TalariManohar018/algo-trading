@@ -62,9 +62,15 @@ export default function ConditionBlock({ condition, showLogic, onUpdate, onRemov
 
                 {needsPeriod && (
                     <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={periodInput}
-                        onChange={(e) => setPeriodInput(e.target.value)}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || /^\d+$/.test(val)) {
+                                setPeriodInput(val);
+                            }
+                        }}
                         onBlur={(e) => {
                             const val = parseInt(e.target.value);
                             if (!isNaN(val) && val > 0) {
@@ -80,7 +86,6 @@ export default function ConditionBlock({ condition, showLogic, onUpdate, onRemov
                             }
                         }}
                         placeholder="Period"
-                        min="1"
                         className="w-20 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                 )}
@@ -96,9 +101,15 @@ export default function ConditionBlock({ condition, showLogic, onUpdate, onRemov
                 </select>
 
                 <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={valueInput}
-                    onChange={(e) => setValueInput(e.target.value)}
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === '-' || val === '.' || /^-?\d*\.?\d*$/.test(val)) {
+                            setValueInput(val);
+                        }
+                    }}
                     onBlur={(e) => {
                         const val = parseFloat(e.target.value);
                         if (!isNaN(val)) {
@@ -114,7 +125,6 @@ export default function ConditionBlock({ condition, showLogic, onUpdate, onRemov
                         }
                     }}
                     placeholder="Value"
-                    step="any"
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
 

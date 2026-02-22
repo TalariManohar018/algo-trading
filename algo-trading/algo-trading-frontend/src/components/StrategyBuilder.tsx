@@ -329,9 +329,15 @@ export default function StrategyBuilder() {
                                 Quantity *
                             </label>
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
                                 value={quantityInput}
-                                onChange={(e) => setQuantityInput(e.target.value)}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || /^\d+$/.test(val)) {
+                                        setQuantityInput(val);
+                                    }
+                                }}
                                 onBlur={(e) => {
                                     const val = parseInt(e.target.value);
                                     if (!isNaN(val) && val > 0) {
@@ -345,7 +351,6 @@ export default function StrategyBuilder() {
                                 onKeyPress={(e) => {
                                     if (e.key === 'Enter') e.currentTarget.blur();
                                 }}
-                                min="1"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -383,9 +388,15 @@ export default function StrategyBuilder() {
                                 Max Trades Per Day *
                             </label>
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
                                 value={maxTradesInput}
-                                onChange={(e) => setMaxTradesInput(e.target.value)}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || /^\d+$/.test(val)) {
+                                        setMaxTradesInput(val);
+                                    }
+                                }}
                                 onBlur={(e) => {
                                     const val = parseInt(e.target.value);
                                     if (!isNaN(val) && val > 0) {
@@ -399,7 +410,6 @@ export default function StrategyBuilder() {
                                 onKeyPress={(e) => {
                                     if (e.key === 'Enter') e.currentTarget.blur();
                                 }}
-                                min="1"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -457,9 +467,15 @@ export default function StrategyBuilder() {
                                 Max Loss Per Trade (₹) *
                             </label>
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 value={maxLossInput}
-                                onChange={(e) => setMaxLossInput(e.target.value)}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '.' || /^\d*\.?\d*$/.test(val)) {
+                                        setMaxLossInput(val);
+                                    }
+                                }}
                                 onBlur={(e) => {
                                     const val = parseFloat(e.target.value);
                                     if (!isNaN(val) && val >= 0) {
@@ -473,8 +489,6 @@ export default function StrategyBuilder() {
                                 onKeyPress={(e) => {
                                     if (e.key === 'Enter') e.currentTarget.blur();
                                 }}
-                                min="0"
-                                step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -484,9 +498,15 @@ export default function StrategyBuilder() {
                                 Max Profit Target (₹)
                             </label>
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 value={maxProfitInput}
-                                onChange={(e) => setMaxProfitInput(e.target.value)}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '.' || /^\d*\.?\d*$/.test(val)) {
+                                        setMaxProfitInput(val);
+                                    }
+                                }}
                                 onBlur={(e) => {
                                     const val = parseFloat(e.target.value);
                                     if (!isNaN(val) && val >= 0) {
@@ -500,8 +520,6 @@ export default function StrategyBuilder() {
                                 onKeyPress={(e) => {
                                     if (e.key === 'Enter') e.currentTarget.blur();
                                 }}
-                                min="0"
-                                step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -511,9 +529,15 @@ export default function StrategyBuilder() {
                                 Stop Loss (%)
                             </label>
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 value={stopLossInput}
-                                onChange={(e) => setStopLossInput(e.target.value)}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '.' || /^\d*\.?\d*$/.test(val)) {
+                                        setStopLossInput(val);
+                                    }
+                                }}
                                 onBlur={(e) => {
                                     const val = parseFloat(e.target.value);
                                     if (!isNaN(val) && val >= 0) {
@@ -527,8 +551,6 @@ export default function StrategyBuilder() {
                                 onKeyPress={(e) => {
                                     if (e.key === 'Enter') e.currentTarget.blur();
                                 }}
-                                min="0"
-                                step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
@@ -538,9 +560,15 @@ export default function StrategyBuilder() {
                                 Take Profit (%)
                             </label>
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 value={takeProfitInput}
-                                onChange={(e) => setTakeProfitInput(e.target.value)}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '.' || /^\d*\.?\d*$/.test(val)) {
+                                        setTakeProfitInput(val);
+                                    }
+                                }}
                                 onBlur={(e) => {
                                     const val = parseFloat(e.target.value);
                                     if (!isNaN(val) && val >= 0) {
@@ -554,8 +582,6 @@ export default function StrategyBuilder() {
                                 onKeyPress={(e) => {
                                     if (e.key === 'Enter') e.currentTarget.blur();
                                 }}
-                                min="0"
-                                step="any"
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
                         </div>
