@@ -20,6 +20,14 @@ import StrategyPerformance from '../components/StrategyPerformance';
 import EmergencyKillSwitch from '../components/EmergencyKillSwitch';
 import AuditLogViewer from '../components/AuditLogViewer';
 
+interface BackendWallet {
+    balance: number;
+    usedMargin: number;
+    availableMargin: number;
+    realizedPnl: number;
+    unrealizedPnl: number;
+}
+
 export default function Dashboard() {
     const { showError, showSuccess } = useError();
     const { settings } = useSettings();
@@ -29,8 +37,63 @@ export default function Dashboard() {
     const [strategies, setStrategies] = useState<Strategy[]>([]);
     const [loading, setLoading] = useState(true);
     const [brokerStatus, setBrokerStatus] = useState<BrokerStatus | null>(null);
+    const [backendWallet, setBackendWallet] = useState<BackendWallet | null>(null);
+    const [backendTrades, setBackendTrades] = useState<any[]>([]);
+    const [backendPositions, setBackendPositions] = useState<any[]>([]);
+    const [engineStatus, setEngineStatus] = useState<any>(null);
 
     const isBrokerConnected = brokerStatus?.connected === true;
+
+    // Fetch real backend data
+    const fetchBackendData = async () => {
+        try {
+            // Fetch engine status
+            const engineRes = await fetch('http://localhost:3001/api/engine/status', {
+                credentials: 'include',
+            });
+            if (engineRes.ok) {
+                const engineResult = await engineRes.json();
+                setEngineStatus(engineResult.data);
+            }
+
+            // Fetch wallet
+            const walletRes = await fetch('http://localhost:3001/api/wallet', {
+                credentials: 'include',
+            });
+            if (walletRes.ok) {
+                const walletResult = await walletRes.json();
+                setBackendWallet(walletResult.data);
+                // Update trading context with real wallet
+                tradingContext.updateWallet({
+                    balance: walletResult.data.balance,
+                    usedMargin: walletResult.data.usedMargin,
+                    availableMargin: walletResult.data.availableMargin,
+                    realizedPnl: walletResult.data.realizedPnl,
+                    unrealizedPnl: walletResult.data.unrealizedPnl,
+                });
+            }
+
+            // Fetch trades
+            const tradesRes = await fetch('http://localhost:3001/api/trades', {
+                credentials: 'include',
+            });
+            if (tradesRes.ok) {
+                const tradesResult = await tradesRes.json();
+                setBackendTrades(tradesResult.data?.trades || tradesResult.data || []);
+            }
+
+            // Fetch positions
+            const positionsRes = await fetch('http://localhost:3001/api/positions', {
+                credentials: 'include',
+            });
+            if (positionsRes.ok) {
+                const positionsResult = await positionsRes.json();
+                setBackendPositions(positionsResult.data || []);
+            }
+        } catch (error) {
+            console.error('Error fetching backend data:', error);
+        }
+    };
 
     // Fetch broker status from API
     const fetchBrokerStatus = useCallback(async () => {
@@ -44,9 +107,13 @@ export default function Dashboard() {
 
     useEffect(() => {
         fetchDashboardData();
+        fetchBackendData();
         initializeTradingEngine();
         fetchBrokerStatus();
-        const interval = setInterval(fetchBrokerStatus, 15000); // poll every 15s
+        const interval = setInterval(() => {
+            fetchBrokerStatus();
+            fetchBackendData();
+        }, 15000); // poll every 15s
         return () => clearInterval(interval);
     }, []);
 
@@ -473,7 +540,11 @@ export default function Dashboard() {
             {isFirstTimeUser && <FirstTimeGuidance />}
 
             {/* Engine Status Panel */}
-            <EngineStatusPanel />
+            <EngineStatusPanel 
+                engineStatus={engineStatus}
+                wallet={backendWallet}
+                todayTrades={backendTrades?.length || 0}
+            />
 
             {/* Account Overview */}
             <AccountSummary accountData={accountData} />

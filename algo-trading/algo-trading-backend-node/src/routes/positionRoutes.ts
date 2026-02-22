@@ -13,15 +13,34 @@ router.get(
     asyncHandler(async (req: Request, res: Response) => {
         const { status = 'OPEN' } = req.query;
 
+        const whereClause: any = {
+            userId: req.user!.userId,
+        };
+
+        // Only filter by status if not 'ALL'
+        if (status !== 'ALL') {
+            whereClause.status = status;
+        }
+
         const positions = await prisma.position.findMany({
-            where: {
-                userId: req.user!.userId,
-                status: status as any,
+            where: whereClause,
+            include: {
+                strategy: {
+                    select: {
+                        name: true,
+                    },
+                },
             },
             orderBy: { openedAt: 'desc' },
         });
 
-        res.json({ success: true, data: positions });
+        // Transform to include strategyName
+        const transformedPositions = positions.map(pos => ({
+            ...pos,
+            strategyName: pos.strategy?.name || 'Unknown',
+        }));
+
+        res.json({ success: true, data: transformedPositions });
     })
 );
 
