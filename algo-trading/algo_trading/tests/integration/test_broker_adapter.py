@@ -103,7 +103,8 @@ class MockBrokerAdapter(BaseBroker):
                 )
             
             position = self.positions[symbol]
-            if quantity > position["quantity"]:
+            # Use tolerance for float comparison
+            if quantity > position["quantity"] + 0.0001:
                 return OrderResult(
                     order_id=order_id,
                     symbol=symbol,
@@ -115,8 +116,10 @@ class MockBrokerAdapter(BaseBroker):
                     message="Insufficient quantity"
                 )
             
-            self.balance += (quantity * price - commission)
-            position["quantity"] -= quantity
+            # Sell the entire position if quantities are approximately equal
+            actual_quantity = min(quantity, position["quantity"])
+            self.balance += (actual_quantity * price - commission)
+            position["quantity"] -= actual_quantity
             
             if position["quantity"] < 0.001:
                 del self.positions[symbol]
@@ -125,7 +128,7 @@ class MockBrokerAdapter(BaseBroker):
                 order_id=order_id,
                 symbol=symbol,
                 side=side,
-                quantity=quantity,
+                quantity=actual_quantity,
                 price=price,
                 status="FILLED",
                 commission=commission,
@@ -247,7 +250,7 @@ class TestBrokerAdapter:
     
     def test_sell_order_execution(self):
         """Test sell order execution and position closure."""
-        broker = MockBrokerAdapter(initial_balance=100000.0)
+        broker = MockBrokerAdapter(initial_balance=120000.0)  # Increased for 30 * 3500 = 105k + commission
         
         # First buy
         broker.place_order("TCS", "BUY", 30, 3500.0)
@@ -339,7 +342,7 @@ class TestPaperBroker:
     
     def test_paper_broker_positions_tracking(self):
         """Test that PaperBroker tracks positions correctly."""
-        broker = PaperBroker(initial_capital=100000.0)
+        broker = PaperBroker(initial_capital=200000.0)  # Increased capital for both orders
         
         broker.place_order("INFY", "BUY", 50, 1500.0)
         broker.place_order("TCS", "BUY", 30, 3500.0)
