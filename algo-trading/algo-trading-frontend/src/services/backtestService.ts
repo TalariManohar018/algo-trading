@@ -50,38 +50,44 @@ class BacktestService {
             
             const result = await backtestApi.runBacktest(request.strategyId, strategyName, symbol, apiRequest);
             
+            // Transform backend response format to frontend format
+            // Backend returns: { config, trades, metrics, equityCurve }
+            const finalEquity = result.equityCurve && result.equityCurve.length > 0 
+                ? result.equityCurve[result.equityCurve.length - 1].equity 
+                : result.config.initialCapital;
+            
             return {
-                strategyId: result.strategyId,
-                strategyName: result.strategyName,
-                startDate: result.startDate,
-                endDate: result.endDate,
-                initialCapital: result.initialCapital,
-                finalCapital: result.finalCapital,
-                totalReturn: result.totalReturn,
-                totalReturnPercentage: result.totalReturnPercentage,
-                totalTrades: result.totalTrades,
-                winningTrades: result.winningTrades,
-                losingTrades: result.losingTrades,
-                winRate: result.winRate,
-                averageWin: result.averageWin,
-                averageLoss: result.averageLoss,
-                profitFactor: result.profitFactor,
-                maxDrawdown: result.maxDrawdown,
-                sharpeRatio: result.sharpeRatio,
-                trades: result.trades.map(t => ({
-                    entryTime: t.entryTime,
-                    exitTime: t.exitTime,
-                    orderSide: t.orderSide as 'BUY' | 'SELL',
+                strategyId: request.strategyId,
+                strategyName: strategyName,
+                startDate: result.config.startDate.toString(),
+                endDate: result.config.endDate.toString(),
+                initialCapital: result.config.initialCapital,
+                finalCapital: finalEquity,
+                totalReturn: result.metrics.totalPnl || 0,
+                totalReturnPercentage: result.metrics.totalReturn || 0,
+                totalTrades: result.metrics.totalTrades || 0,
+                winningTrades: result.metrics.winningTrades || 0,
+                losingTrades: result.metrics.losingTrades || 0,
+                winRate: result.metrics.winRate || 0,
+                averageWin: result.metrics.averageWin || 0,
+                averageLoss: result.metrics.averageLoss || 0,
+                profitFactor: result.metrics.profitFactor || 0,
+                maxDrawdown: result.metrics.maxDrawdown || 0,
+                sharpeRatio: result.metrics.sharpeRatio || 0,
+                trades: (result.trades || []).map(t => ({
+                    entryTime: t.entryDate.toString(),
+                    exitTime: t.exitDate.toString(),
+                    orderSide: t.side as 'BUY' | 'SELL',
                     entryPrice: t.entryPrice,
                     exitPrice: t.exitPrice,
                     quantity: t.quantity,
                     pnl: t.pnl,
-                    pnlPercentage: t.pnlPercentage
+                    pnlPercentage: t.pnlPercent
                 }))
             };
         } catch (error) {
             console.error('Failed to run backtest:', error);
-            throw new Error('Failed to run backtest');
+            throw new Error(error instanceof Error ? error.message : 'Failed to run backtest');
         }
     }
 

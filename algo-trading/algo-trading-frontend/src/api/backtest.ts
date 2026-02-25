@@ -6,33 +6,53 @@ export interface BacktestRequest {
     initialCapital: number;
 }
 
+// Backend response structure
 export interface BacktestResult {
-    strategyId: number;
-    strategyName: string;
-    startDate: string;
-    endDate: string;
-    initialCapital: number;
-    finalCapital: number;
-    totalReturn: number;
-    totalReturnPercentage: number;
-    totalTrades: number;
-    winningTrades: number;
-    losingTrades: number;
-    winRate: number;
-    averageWin: number;
-    averageLoss: number;
-    maxDrawdown: number;
-    sharpeRatio: number;
-    profitFactor: number;
+    config: {
+        strategyName: string;
+        strategyId: string;
+        symbol: string;
+        timeframe: string;
+        startDate: Date;
+        endDate: Date;
+        initialCapital: number;
+        positionSizePercent: number;
+        slippageBps: number;
+        commissionBps: number;
+        parameters: Record<string, number>;
+    };
     trades: Array<{
-        entryTime: string;
-        exitTime: string;
+        entryDate: Date;
+        exitDate: Date;
+        side: string;
         entryPrice: number;
         exitPrice: number;
         quantity: number;
         pnl: number;
-        pnlPercentage: number;
-        orderSide: string;
+        pnlPercent: number;
+    }>;
+    metrics: {
+        totalTrades: number;
+        winningTrades: number;
+        losingTrades: number;
+        winRate: number;
+        totalPnl: number;
+        totalReturn: number;
+        maxDrawdown: number;
+        maxDrawdownPercent: number;
+        sharpeRatio: number;
+        sortinoRatio: number;
+        profitFactor: number;
+        averageWin: number;
+        averageLoss: number;
+        largestWin: number;
+        largestLoss: number;
+        averageHoldingPeriod: number;
+        calmarRatio: number;
+    };
+    equityCurve: Array<{
+        date: Date;
+        equity: number;
     }>;
 }
 

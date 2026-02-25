@@ -74,13 +74,18 @@ export default function Backtest() {
         setTimeout(() => setIsSaved(false), 3000);
     };
 
-    const monthlyReturns = results?.trades.reduce((acc, trade) => {
-        const month = new Date(trade.exitTime).toLocaleDateString('en-US', { month: 'short' });
-        const existing = acc.find(item => item.month === month);
-        if (existing) {
-            existing.returns += trade.pnl / (trade.entryPrice * trade.quantity) * 100;
-        } else {
-            acc.push({ month, returns: trade.pnl / (trade.entryPrice * trade.quantity) * 100 });
+    const monthlyReturns = results?.trades?.reduce((acc, trade) => {
+        try {
+            const month = new Date(trade.exitTime).toLocaleDateString('en-US', { month: 'short' });
+            const existing = acc.find(item => item.month === month);
+            const returnPercent = trade.pnl / (trade.entryPrice * trade.quantity) * 100;
+            if (existing) {
+                existing.returns += returnPercent;
+            } else {
+                acc.push({ month, returns: returnPercent });
+            }
+        } catch (error) {
+            console.error('Error processing trade for monthly returns:', error, trade);
         }
         return acc;
     }, [] as Array<{ month: string; returns: number }>) || [];
