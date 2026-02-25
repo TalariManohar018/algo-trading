@@ -176,7 +176,7 @@ export default function Strategies() {
 
             const originalId = (strategyData as any).originalId || strategyData.id;
 
-            const response = await fetch(`http://localhost:8080/api/strategies/${originalId}/test-execute`, {
+            const response = await fetch(`http://localhost:3001/api/strategies/${originalId}/test-execute`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -212,7 +212,7 @@ export default function Strategies() {
 
             const originalId = (strategyData as any).originalId || strategyData.id;
 
-            const response = await fetch(`http://localhost:8080/api/strategies/${originalId}/test-execute`, {
+            const response = await fetch(`http://localhost:3001/api/strategies/${originalId}/test-execute`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
