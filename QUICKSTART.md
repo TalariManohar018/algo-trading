@@ -279,6 +279,72 @@ npm run dev
 
 ---
 
+## CI/CD and Testing
+
+### Running CI Locally
+
+The project includes GitHub Actions CI that tests all components. To run tests locally:
+
+#### Node.js Backend Tests
+```bash
+cd algo-trading/algo-trading-backend-node
+npm ci
+npm run lint
+npm test
+```
+
+#### Frontend Build & Lint
+```bash
+cd algo-trading/algo-trading-frontend
+npm ci
+npm run lint
+npm run build
+```
+
+#### Python Tests
+```bash
+cd algo-trading/algo_trading
+pip install -r requirements.txt
+pip install pytest pytest-cov
+pytest tests/ -v
+```
+
+#### Java Backend Tests
+```bash
+cd algo-trading/algo-trading-backend
+mvn clean test
+mvn package
+```
+
+### Running Demo Backtest
+
+Execute a demo backtest with sample data:
+
+**Linux/Mac:**
+```bash
+./scripts/run_demo_backtest.sh
+```
+
+**Windows:**
+```powershell
+.\scripts\run_demo_backtest.ps1
+```
+
+Output: `demo/output.json` with backtest results.
+
+### Integration Tests
+
+Run broker adapter integration tests:
+
+```bash
+cd algo-trading/algo_trading
+pytest tests/integration/test_broker_adapter.py -v
+```
+
+These tests verify that order requests translate to correct broker payloads.
+
+---
+
 ## Support
 
 - Backend Logs: Check terminal running `spring-boot:run`
@@ -290,8 +356,23 @@ npm run dev
 
 ---
 
+## CI/CD Pipeline
+
+The repository includes automated CI/CD via GitHub Actions (`.github/workflows/ci.yml`):
+
+- ✅ Node.js backend lint & tests
+- ✅ Frontend build & lint  
+- ✅ Python unit tests with pytest
+- ✅ Java backend Maven build & tests
+- ✅ Security scan for secrets
+- ✅ Integration tests for broker adapter
+
+The pipeline runs on every push and pull request to `main` and `develop` branches.
+
+---
+
 **System Status**: ✅ FULLY OPERATIONAL
 
-**Ready for**: Paper Trading | Strategy Development | Testing
+**Ready for**: Paper Trading | Strategy Development | Testing | CI/CD
 
 **Not Ready for**: Live Trading (requires broker integration)
