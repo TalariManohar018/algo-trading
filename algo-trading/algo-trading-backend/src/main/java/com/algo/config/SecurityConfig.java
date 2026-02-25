@@ -32,10 +32,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/",
-                                "/api/auth/**",
-                                "/api/health",
+                                "/api/**",
                                 "/h2-console/**",
-                                "/error"
+                                "/error",
+                                "/ws/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

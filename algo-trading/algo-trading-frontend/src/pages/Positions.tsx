@@ -33,7 +33,7 @@ export default function Positions() {
     const fetchPositions = async () => {
         try {
             console.log('[Positions] Fetching from backend...');
-            const response = await fetch('http://localhost:3001/api/positions?status=ALL', {
+            const response = await fetch('http://localhost:8080/api/positions?status=ALL', {
                 credentials: 'include'
             });
             if (response.ok) {
@@ -52,7 +52,7 @@ export default function Positions() {
     const generateDemoPositions = async () => {
         try {
             setLoading(true, 'Generating demo positions...');
-            const response = await fetch('http://localhost:3001/api/demo/generate-positions', {
+            const response = await fetch('http://localhost:8080/api/demo/generate-positions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -97,7 +97,7 @@ export default function Positions() {
             setLoading(true, 'Closing position...');
             
             // Call backend to close position
-            const response = await fetch(`http://localhost:3001/api/positions/${positionId}/close`, {
+            const response = await fetch(`http://localhost:8080/api/positions/${positionId}/close`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',

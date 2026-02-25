@@ -1,7 +1,7 @@
 // ============================================================
 // REAL WEBSOCKET SERVICE — Connects to Node.js backend WS
 // ============================================================
-// Connects to ws://localhost:3001/ws with reconnection and
+// Connects to ws://localhost:8080/ws with reconnection and
 // fallback to simulated data when backend is unreachable.
 // ============================================================
 
@@ -27,7 +27,7 @@ export interface WebSocketMessage {
 
 type MessageCallback = (message: WebSocketMessage) => void;
 
-const WS_URL = 'ws://localhost:3001/ws';
+const WS_URL = 'ws://localhost:8080/ws';
 
 class WebSocketService {
     private ws: WebSocket | null = null;

@@ -48,7 +48,7 @@ export default function Dashboard() {
     const fetchBackendData = async () => {
         try {
             // Fetch engine status
-            const engineRes = await fetch('http://localhost:3001/api/engine/status', {
+            const engineRes = await fetch('http://localhost:8080/api/engine/status', {
                 credentials: 'include',
             });
             if (engineRes.ok) {
@@ -57,7 +57,7 @@ export default function Dashboard() {
             }
 
             // Fetch wallet
-            const walletRes = await fetch('http://localhost:3001/api/wallet', {
+            const walletRes = await fetch('http://localhost:8080/api/wallet', {
                 credentials: 'include',
             });
             if (walletRes.ok) {
@@ -74,7 +74,7 @@ export default function Dashboard() {
             }
 
             // Fetch trades
-            const tradesRes = await fetch('http://localhost:3001/api/trades', {
+            const tradesRes = await fetch('http://localhost:8080/api/trades', {
                 credentials: 'include',
             });
             if (tradesRes.ok) {
@@ -83,7 +83,7 @@ export default function Dashboard() {
             }
 
             // Fetch positions
-            const positionsRes = await fetch('http://localhost:3001/api/positions', {
+            const positionsRes = await fetch('http://localhost:8080/api/positions', {
                 credentials: 'include',
             });
             if (positionsRes.ok) {
