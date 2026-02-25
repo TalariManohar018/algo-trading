@@ -299,41 +299,48 @@ export class BacktestService {
         // Compute metrics
         const metrics = this.computeMetrics(trades, config.initialCapital, capital, maxDrawdown, peakCapital);
 
-        // Save backtest result to DB
-        await prisma.backtest.create({
-            data: {
-                userId,
-                strategyId: config.strategyId,
-                symbol: config.symbol,
-                startDate: config.startDate,
-                endDate: config.endDate,
-                initialCapital: config.initialCapital,
-                finalCapital: capital,
-                totalPnl: metrics.totalPnl,
-                totalTrades: metrics.totalTrades,
-                winningTrades: metrics.winningTrades,
-                losingTrades: metrics.losingTrades,
-                winRate: metrics.winRate,
-                maxDrawdown: metrics.maxDrawdown,
-                maxDrawdownPct: metrics.maxDrawdownPercent,
-                sharpeRatio: metrics.sharpeRatio,
-                sortinoRatio: metrics.sortinoRatio,
-                profitFactor: metrics.profitFactor,
-                avgWin: metrics.averageWin,
-                avgLoss: metrics.averageLoss,
-                equityCurve: JSON.stringify(equityCurve.map(e => ({ d: e.date.toISOString(), e: e.equity }))),
-                trades: JSON.stringify(trades.map(t => ({
-                    entry: t.entryDate.toISOString(),
-                    exit: t.exitDate.toISOString(),
-                    side: t.side,
-                    ep: t.entryPrice,
-                    xp: t.exitPrice,
-                    qty: t.quantity,
-                    pnl: t.pnl,
-                }))),
-                status: 'completed',
-            },
-        });
+        // Save backtest result to DB only if strategy exists in database
+        if (userStrategy) {
+            try {
+                await prisma.backtest.create({
+                    data: {
+                        userId,
+                        strategyId: config.strategyId,
+                        symbol: config.symbol,
+                        startDate: config.startDate,
+                        endDate: config.endDate,
+                        initialCapital: config.initialCapital,
+                        finalCapital: capital,
+                        totalPnl: metrics.totalPnl,
+                        totalTrades: metrics.totalTrades,
+                        winningTrades: metrics.winningTrades,
+                        losingTrades: metrics.losingTrades,
+                        winRate: metrics.winRate,
+                        maxDrawdown: metrics.maxDrawdown,
+                        maxDrawdownPct: metrics.maxDrawdownPercent,
+                        sharpeRatio: metrics.sharpeRatio,
+                        sortinoRatio: metrics.sortinoRatio,
+                        profitFactor: metrics.profitFactor,
+                        avgWin: metrics.averageWin,
+                        avgLoss: metrics.averageLoss,
+                        equityCurve: JSON.stringify(equityCurve.map(e => ({ d: e.date.toISOString(), e: e.equity }))),
+                        trades: JSON.stringify(trades.map(t => ({
+                            entry: t.entryDate.toISOString(),
+                            exit: t.exitDate.toISOString(),
+                            side: t.side,
+                            ep: t.entryPrice,
+                            xp: t.exitPrice,
+                            qty: t.quantity,
+                            pnl: t.pnl,
+                        }))),
+                        status: 'completed',
+                    },
+                });
+            } catch (error) {
+                // Log but don't fail the backtest if saving fails
+                logger.error('Failed to save backtest to database', { error });
+            }
+        }
 
         return { config, trades, metrics, equityCurve };
     }
