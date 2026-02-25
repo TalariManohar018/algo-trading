@@ -4,6 +4,6 @@ export const API_ENDPOINTS = {
     STRATEGIES: '/strategies',
     ENGINE: '/engine',
     TRADES: '/trades',
-    BACKTEST: '/backtest',
+    BACKTEST: '/backtests',
     PNL: '/trades/pnl'
 };

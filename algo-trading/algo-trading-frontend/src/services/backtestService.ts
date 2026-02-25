@@ -40,7 +40,7 @@ export interface BacktestResult {
 }
 
 class BacktestService {
-    async runBacktest(request: BacktestRequest): Promise<BacktestResult> {
+    async runBacktest(request: BacktestRequest, strategyName: string, symbol: string): Promise<BacktestResult> {
         try {
             const apiRequest = {
                 startDate: request.startDate,
@@ -48,7 +48,7 @@ class BacktestService {
                 initialCapital: request.initialCapital
             };
             
-            const result = await backtestApi.runBacktest(request.strategyId, apiRequest);
+            const result = await backtestApi.runBacktest(request.strategyId, strategyName, symbol, apiRequest);
             
             return {
                 strategyId: result.strategyId,

@@ -36,16 +36,26 @@ export default function Backtest() {
             return;
         }
 
+        const strategy = strategies.find(s => s.id.toString() === selectedStrategy);
+        if (!strategy) {
+            showError('Strategy not found');
+            return;
+        }
+
         setIsRunning(true);
         setIsSaved(false);
         setGlobalLoading(true, 'Running backtest simulation...');
         try {
-            const result = await backtestService.runBacktest({
-                strategyId: parseInt(selectedStrategy),
-                startDate,
-                endDate,
-                initialCapital
-            });
+            const result = await backtestService.runBacktest(
+                {
+                    strategyId: parseInt(selectedStrategy),
+                    startDate,
+                    endDate,
+                    initialCapital
+                },
+                strategy.name,
+                strategy.symbol || 'NIFTY'
+            );
             setResults(result);
             setGlobalLoading(false);
         } catch (error) {

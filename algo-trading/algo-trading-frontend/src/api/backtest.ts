@@ -38,15 +38,33 @@ export interface BacktestResult {
 
 export const backtestApi = {
     // Run backtest for a strategy
-    runBacktest: async (strategyId: number, request: BacktestRequest): Promise<BacktestResult> => {
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.BACKTEST}/${strategyId}`, {
+    runBacktest: async (strategyId: number, strategyName: string, symbol: string, request: BacktestRequest): Promise<BacktestResult> => {
+        const payload = {
+            strategyId: strategyId.toString(),
+            strategyName: strategyName,
+            symbol: symbol,
+            timeframe: '1d',
+            parameters: {},
+            startDate: request.startDate,
+            endDate: request.endDate,
+            initialCapital: request.initialCapital,
+            positionSizePercent: 20,
+            slippageBps: 5,
+            commissionBps: 3
+        };
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.BACKTEST}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(request),
+            credentials: 'include',
+            body: JSON.stringify(payload),
         });
-        if (!response.ok) throw new Error('Failed to run backtest');
-        return response.json();
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error || 'Failed to run backtest');
+        }
+        const result = await response.json();
+        return result.data || result;
     },
 };
