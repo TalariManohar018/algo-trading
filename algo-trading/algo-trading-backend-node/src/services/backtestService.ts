@@ -74,12 +74,36 @@ export class BacktestService {
      * Run a full backtest
      */
     async run(userId: string, config: BacktestConfig): Promise<BacktestResult> {
-        // Validate strategy exists
-        const strategy = strategyRegistry.getOrThrow(config.strategyName);
+        // Get the strategy from database to get strategyType
+        const userStrategy = await prisma.strategy.findFirst({
+            where: {
+                id: config.strategyId,
+                userId: userId
+            }
+        });
+
+        if (!userStrategy) {
+            throw new NotFoundError('Strategy not found');
+        }
+
+        // Use the strategyType field (e.g., 'MA_CROSSOVER', 'RSI', etc.)
+        const strategyTypeName = userStrategy.strategyType || config.strategyName;
+        
+        // Validate strategy exists in registry
+        const strategy = strategyRegistry.getOrThrow(strategyTypeName);
+
+        // Parse parameters from stored JSON
+        let parameters = config.parameters;
+        try {
+            const storedParams = JSON.parse(userStrategy.parameters || '{}');
+            parameters = { ...storedParams, ...config.parameters };
+        } catch {
+            // If parsing fails, use config parameters
+        }
 
         // Validate parameters
         try {
-            strategy.validateParameters(config.parameters);
+            strategy.validateParameters(parameters);
         } catch (e: any) {
             throw new ValidationError(e.message || 'Invalid strategy parameters');
         }
@@ -117,7 +141,7 @@ export class BacktestService {
             }));
         }
 
-        logger.info(`Backtesting ${config.strategyName} on ${config.symbol}: ${candles.length} candles`);
+        logger.info(`Backtesting ${strategyTypeName} on ${config.symbol}: ${candles.length} candles`);
 
         // Walk-forward simulation
         const trades: BacktestTrade[] = [];
