@@ -129,10 +129,16 @@ test_broker_adapter.py::TestPaperBroker::test_paper_broker_buy_order PASSED
 test_broker_adapter.py::TestPaperBroker::test_paper_broker_positions_tracking PASSED
 test_broker_adapter.py::TestPaperBroker::test_paper_broker_averaging PASSED
 
-============ 12 passed in 0.08s ============
+============ 12 passed in 0.28s ============
 ```
 
 ✅ **Status**: All tests passing
+
+**Test Fixes Applied**:
+- Fixed insufficient balance in `test_sell_order_execution` (increased from 100k to 120k)
+- Fixed insufficient balance in `test_paper_broker_positions_tracking` (increased from 100k to 200k)
+- Added float tolerance comparison for sell order quantity validation
+- Updated sell order to return actual quantity filled instead of requested quantity
 
 #### Demo Backtest Script
 ```bash
