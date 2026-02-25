@@ -74,7 +74,7 @@ export class BacktestService {
      * Run a full backtest
      */
     async run(userId: string, config: BacktestConfig): Promise<BacktestResult> {
-        // Get the strategy from database to get strategyType
+        // Try to get the strategy from database to get strategyType (optional)
         const userStrategy = await prisma.strategy.findFirst({
             where: {
                 id: config.strategyId,
@@ -82,24 +82,35 @@ export class BacktestService {
             }
         });
 
-        if (!userStrategy) {
-            throw new NotFoundError('Strategy not found');
-        }
+        // Determine strategy type - use DB strategy if found, otherwise use config
+        let strategyTypeName: string;
+        let parameters = config.parameters;
 
-        // Use the strategyType field (e.g., 'MA_CROSSOVER', 'RSI', etc.)
-        const strategyTypeName = userStrategy.strategyType || config.strategyName;
+        if (userStrategy) {
+            // Strategy found in DB - use its strategyType and merge parameters
+            strategyTypeName = userStrategy.strategyType || config.strategyName;
+            try {
+                const storedParams = JSON.parse(userStrategy.parameters || '{}');
+                parameters = { ...storedParams, ...config.parameters };
+            } catch {
+                // If parsing fails, use config parameters
+            }
+        } else {
+            // Strategy not in DB - use strategyName from config directly
+            // Map common names to strategy types
+            const nameMapping: Record<string, string> = {
+                'Moving Average Crossover': 'MA_CROSSOVER',
+                'RSI Strategy': 'RSI',
+                'Custom Strategy': 'CUSTOM',
+                'MA_CROSSOVER': 'MA_CROSSOVER',
+                'RSI': 'RSI',
+                'CUSTOM': 'CUSTOM'
+            };
+            strategyTypeName = nameMapping[config.strategyName] || config.strategyName;
+        }
         
         // Validate strategy exists in registry
         const strategy = strategyRegistry.getOrThrow(strategyTypeName);
-
-        // Parse parameters from stored JSON
-        let parameters = config.parameters;
-        try {
-            const storedParams = JSON.parse(userStrategy.parameters || '{}');
-            parameters = { ...storedParams, ...config.parameters };
-        } catch {
-            // If parsing fails, use config parameters
-        }
 
         // Validate parameters
         try {

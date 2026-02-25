@@ -39,12 +39,33 @@ export interface BacktestResult {
 export const backtestApi = {
     // Run backtest for a strategy
     runBacktest: async (strategyId: number, strategyName: string, symbol: string, request: BacktestRequest): Promise<BacktestResult> => {
+        // Provide default parameters for common strategies
+        const defaultParametersByStrategy: Record<string, Record<string, number>> = {
+            'Moving Average Crossover': {
+                fastPeriod: 9,
+                slowPeriod: 21,
+                atrPeriod: 14,
+                atrMultiplier: 1.5,
+                riskRewardRatio: 2
+            },
+            'RSI Strategy': {
+                rsiPeriod: 14,
+                oversoldThreshold: 30,
+                overboughtThreshold: 70,
+                atrPeriod: 14,
+                atrMultiplier: 1.5,
+                riskRewardRatio: 2
+            }
+        };
+
+        const parameters = defaultParametersByStrategy[strategyName] || {};
+
         const payload = {
             strategyId: strategyId.toString(),
             strategyName: strategyName,
             symbol: symbol,
             timeframe: '1d',
-            parameters: {},
+            parameters: parameters,
             startDate: request.startDate,
             endDate: request.endDate,
             initialCapital: request.initialCapital,
